@@ -16,7 +16,7 @@ export const useEscStore = defineStore('esc', () => {
     const activeTarget = ref(-1);
     const totalBytes = ref(0);
     const bytesWritten = ref(0);
-    const step = ref('Writing');
+    const step = ref('');
 
     const $reset = () => {
         count.value = 0;
@@ -26,7 +26,7 @@ export const useEscStore = defineStore('esc', () => {
         activeTarget.value = -1;
         totalBytes.value = 0;
         bytesWritten.value = 0;
-        step.value = 'Writing';
+        step.value = '';
     };
 
     return { settingsDirty, isSaving, isLoading, count, expectedCount, escData, selectedEscInfo, firstValidEscData, activeTarget, totalBytes, bytesWritten, step, $reset };

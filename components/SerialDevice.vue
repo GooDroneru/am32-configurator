@@ -243,7 +243,7 @@
                 <UButton
                   label="Start flash"
                   :disabled="
-                    (savingOrApplyingSelectedEscs.length === 0) ||
+                    (!serialStore.isDirectConnect && savingOrApplyingSelectedEscs.length === 0) ||
                       (currentTab === 0 && (!selectedAsset || selectedAsset === 'NOT FOUND')) ||
                       (currentTab > 0 && !fileInput)
                   "
@@ -839,34 +839,39 @@ const selectFile = (event: Event | FileList) => {
 };
 
 const startModalFlash = async () => {
+    const logStore = useLogStore();
+    try {
     if (currentTab.value === 0) {
         const url = releases.value?.[0].children.find(c => c.name === selectedRelease.value)?.files.find(f => f.name === selectedAsset.value)?.url;
-        if (url) {
-            const dbEntry = await db.downloads.where('url').equals(url).first();
+        if (!url) {
+            logStore.logError('Could not resolve firmware URL. Check that a release and asset are selected.');
+            toast.add({ title: 'Error', color: 'red', description: 'Could not resolve firmware URL.' });
+            return;
+        }
+        const dbEntry = await db.downloads.where('url').equals(url).first();
 
-            escStore.activeTarget = 0;
-            escStore.step = 'Downloading';
+        escStore.activeTarget = 0;
+        escStore.step = 'Downloading';
 
-            if (dbEntry) {
-                return startFlash(dbEntry.text);
-            }
+        if (dbEntry) {
+            return await startFlash(dbEntry.text);
+        }
 
-            const file: Response = await fetch(url);
-            const blob = await file.blob();
-            const data = await blob.text();
-            if (blob && typeof data === 'string') {
-                await db.downloads.add({
-                    url,
-                    text: data
-                });
+        const file: Response = await fetch(url);
+        const blob = await file.blob();
+        const data = await blob.text();
+        if (blob && typeof data === 'string') {
+            await db.downloads.add({
+                url,
+                text: data
+            });
 
-                startFlash(data);
-            }
+            await startFlash(data);
         }
     } else if (currentTab.value === 1) {
         const logStore = useLogStore();
         if (fileInput.value) {
-            if (!ignoreMcuLayout.value && escStore.firstValidEscData) {
+            if (!serialStore.isDirectConnect && !ignoreMcuLayout.value && escStore.firstValidEscData) {
                 const mcu = new Mcu(escStore.firstValidEscData.data.meta.signature);
                 const eepromOffset = mcu.getEepromOffset();
                 const offset = 0x8000000;
@@ -898,7 +903,7 @@ const startModalFlash = async () => {
                     }
                 }
             }
-            startFlash(await fileInput.value.text());
+            await startFlash(await fileInput.value.text());
         }
     } else if (currentTab.value === 2) {
         const logStore = useLogStore();
@@ -924,60 +929,46 @@ const startModalFlash = async () => {
                     throw new Error('Pin does not match! Aborting flash!');
                 }
             }
-            startFlash(amj.hex);
+            await startFlash(amj.hex);
         }
+    }
+    } catch (e: any) {
+        logStore.logError('Flash error: ' + (e?.message ?? String(e)));
+        toast.add({ title: 'Flash Error', color: 'red', description: e?.message ?? String(e) });
+        escStore.activeTarget = -1;
+        escStore.step = '';
     }
 };
 
 const startFlash = async (hexString: string) => {
-    if (serialStore.isDirectConnect && escStore.firstValidEscData) {
+    if (serialStore.isDirectConnect) {
         const logStore = useLogStore();
+        if (!escStore.firstValidEscData) {
+            logStore.logError('ESC not connected! Please connect to ESC first.');
+            toast.add({ title: 'Error', color: 'red', description: 'ESC not connected. Press the scan button first.' });
+            return;
+        }
         const parsed = Flash.parseHex(hexString);
         const mcu = new Mcu(escStore.firstValidEscData.data.meta.signature);
+        if (!parsed) {
+            logStore.logError('Failed to parse hex file!');
+            toast.add({ title: 'Error', color: 'red', description: 'Failed to parse hex file!' });
+            return;
+        }
+        try {
         if (parsed) {
             escStore.activeTarget = 0;
             escStore.bytesWritten = 0;
 
-            let i = 0;
-            if (parsed.bytes < 27 * 1024 - 1 + 32) {
-                const filled = new Uint8Array(27 * 1024 - 1).fill(0xFF);
-                let bytes32Index = -1;
-                for (let i = 0; i < parsed.data.length; i++) {
-                    if (parsed.data[i].bytes === 32) {
-                        bytes32Index = i;
-                        break;
-                    }
-                }
-                if (bytes32Index === -1) {
-                    toast.add({
-                        title: 'Error',
-                        color: 'red',
-                        description: '32 bytes block not found in hex file!'
-                    });
-                    return;
-                }
-                let lowIndex = -1;
-                for (let i = 0; i < parsed.data.length; i++) {
-                    if (lowIndex === -1 || parsed.data[i].address < parsed.data[lowIndex].address) {
-                        lowIndex = i;
-                    }
-                }
-                filled.set(parsed.data[lowIndex].data);
-                for (let i = 0; i < parsed.data.length; i++) {
-                    if (i !== lowIndex && i !== bytes32Index) {
-                        filled.set(parsed.data[i].data, parsed.data[i].address - parsed.data[lowIndex].address);
-                        parsed.data[i].bytes = 0;
-                    }
-                }
-                parsed.data[lowIndex].data = Array.from(filled);
-                parsed.data[lowIndex].bytes = filled.length;
-                parsed.bytes = filled.length + 32;
-            }
-
-            debugger;
-
             escStore.totalBytes = parsed.bytes;
             escStore.step = 'Writing';
+
+            let i = 0;
+
+            // Hex files may use absolute addresses (e.g. 0x08001000) or relative addresses (e.g. 0x1000).
+            // cmd_SetAddress only encodes 16-bit offsets, so subtract flashOffset only if addresses are absolute.
+            const maxHexAddress = parsed.data.reduce((m, d) => Math.max(m, d.address), 0);
+            const hexFlashOffset = maxHexAddress >= mcu.getFlashOffset() ? mcu.getFlashOffset() : 0;
 
             for (const start of parsed.data) {
                 if (start.bytes === 0) {
@@ -986,26 +977,40 @@ const startFlash = async (hexString: string) => {
                 i = 0;
                 logStore.log(`Flashing: 0x${start.address.toString(16)}, ${start.bytes} bytes`);
                 const CHUNK_SIZE = 64;
-                while (true) {
-                    logStore.log(`... 0x${((start.address - mcu.getFlashOffset()) + (i * CHUNK_SIZE)).toString(16)} - 0x${((start.address - mcu.getFlashOffset()) + ((i + 1) * CHUNK_SIZE) - 1).toString(16)}`);
-                    const chunk = new Uint8Array(start.data.slice(i * CHUNK_SIZE, ((i + 1) * CHUNK_SIZE > start.data.length ? start.data.length - 1 : (i + 1) * CHUNK_SIZE)));
-                    await Direct.getInstance().writeBufferToAddress((start.address - mcu.getFlashOffset()) + (i * CHUNK_SIZE), chunk);
-                    escStore.bytesWritten += CHUNK_SIZE;
+                while (i * CHUNK_SIZE < start.data.length) {
+                    const sliceEnd = Math.min((i + 1) * CHUNK_SIZE, start.data.length);
+                    const chunk = new Uint8Array(start.data.slice(i * CHUNK_SIZE, sliceEnd));
+                    logStore.log(`... 0x${((start.address - hexFlashOffset) + (i * CHUNK_SIZE)).toString(16)} - 0x${((start.address - hexFlashOffset) + sliceEnd - 1).toString(16)}`);
+                    await Direct.getInstance().writeBufferToAddress((start.address - hexFlashOffset) + (i * CHUNK_SIZE), chunk);
+                    escStore.bytesWritten += chunk.length;
                     i += 1;
-                    if ((i + 1) * CHUNK_SIZE > start.data.length) {
-                        break;
-                    }
                 }
             }
             escStore.step = 'Rewriting config';
             await writeConfig();
             escStore.step = 'Resetting';
             await Direct.getInstance().writeCommand(DIRECT_COMMANDS.cmd_Reset, 0);
+            await delay(2000);
             escStore.step = 'Read config';
-            await Direct.getInstance().init();
-
+            const newInfo = await Direct.getInstance().init();
+            if (newInfo && escStore.escData[0]) {
+                escStore.escData[0].data = newInfo;
+                escStore.escData[0].isLoading = false;
+                escStore.escData[0].isError = false;
+            }
+            escStore.step = '';
             escStore.activeTarget = -1;
+            flashModalOpen.value = false;
+            toast.add({ title: 'Flash complete', color: 'green', description: 'Firmware flashed successfully!' });
         }
+        } catch (e: any) {
+            const logStore = useLogStore();
+            logStore.logError('Flash failed: ' + (e?.message ?? String(e)));
+            toast.add({ title: 'Flash Error', color: 'red', description: e?.message ?? String(e) });
+            escStore.activeTarget = -1;
+            escStore.step = '';
+        }
+        return;
     } else {
         for (const n of savingOrApplyingSelectedEscs.value) {
             const i = n - 1;
@@ -1039,7 +1044,7 @@ const startFlash = async (hexString: string) => {
         escStore.activeTarget = -1;
         flashModalOpen.value = false;
 
-        await connectToEsc();
+        await connectToEsc(); // reconnect after 4-way flash
         /* if (file_input.value) {
             file_input.value.value = '';
         } */

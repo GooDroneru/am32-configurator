@@ -414,8 +414,16 @@ export class FourWay {
             const initFlash = await this.initFlash(target, 3);
             const info = Flash.getInfo(initFlash!);
             const mcu = new Mcu(info.meta.signature);
-            const endAddress = parsed.data[parsed.data.length - 1].address + parsed.data[parsed.data.length - 1].bytes;
-            const flash = Flash.fillImage(parsed, endAddress - mcu.getFlashOffset(), mcu.getFlashOffset());
+            // Find the highest end address across all segments (not just the last one)
+            const endAddress = parsed.data.reduce((max, d) => Math.max(max, d.address + d.bytes), 0);
+            // Hex files may use absolute addresses (0x08000000+) or relative addresses (0-based).
+            // If endAddress < flashOffset, the hex uses relative addressing — fill with offset 0.
+            const fillOffset = endAddress >= mcu.getFlashOffset() ? mcu.getFlashOffset() : 0;
+            const imageSize = endAddress - fillOffset;
+            if (imageSize <= 0) {
+                throw new Error(`Invalid hex file: imageSize ${imageSize} is not positive (endAddress=0x${endAddress.toString(16)})`);
+            }
+            const flash = Flash.fillImage(parsed, imageSize, fillOffset);
             if (flash) {
                 const eepromOffset = mcu.getEepromOffset();
                 const pageSize = mcu.getPageSize();

@@ -15,11 +15,13 @@ export default defineEventHandler(async (event) => {
     const filter = query.filter?.toString().split(',') ?? ['releases', 'bootloader', 'tools'];
     const includePrereleases = query.prereleases !== undefined;
 
-    const minioClient = useMinio();
+    const minioConfigured = !!(process.env.MINIO_URL && process.env.MINIO_ACCESS_KEY && process.env.MINIO_SECRET_KEY);
+    const minioClient = minioConfigured ? useMinio() : null;
 
     const folders: BlobFolder[] = [];
 
-    if (filter.includes('releases')) {
+    if (filter.includes('releases') && minioClient) {
+      try {
         const releasesStream = minioClient.listObjectsV2('releases', '', true, '');
 
         const getReleases = (): Promise<{
@@ -96,9 +98,13 @@ export default defineEventHandler(async (event) => {
                 }
             }
         }
+      } catch (e) {
+        console.error('[files] releases fetch failed:', e);
+      }
     }
 
-    if (filter.includes('bootloader')) {
+    if (filter.includes('bootloader') && minioClient) {
+      try {
         const bootloadersStream = minioClient.listObjectsV2('bootloaders', '', true, '');
 
         const getBootloaders = (): Promise<{
@@ -171,9 +177,13 @@ export default defineEventHandler(async (event) => {
                 });
             }
         }
+      } catch (e) {
+        console.error('[files] bootloaders fetch failed:', e);
+      }
     }
 
-    if (filter.includes('bootloader')) {
+    if (filter.includes('bootloader') && minioClient) {
+      try {
         const toolsStream = minioClient.listObjectsV2('am32-tools', '', true, '');
 
         const getTools = (): Promise<{
@@ -221,6 +231,9 @@ export default defineEventHandler(async (event) => {
                 url: t.value ?? ''
             }))
         });
+      } catch (e) {
+        console.error('[files] tools fetch failed:', e);
+      }
     }
 
     return {

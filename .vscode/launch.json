@@ -1,0 +1,15 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Open Browser (localhost:3000)",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:3000",
+			"presentation": {
+				"group": "dev",
+				"order": 1
+			}
+		}
+	]
+}

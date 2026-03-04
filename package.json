@@ -1,5 +1,6 @@
 {
   "name": "@am32/am32-configurator",
+  "type": "module",
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
@@ -37,6 +38,7 @@
     "@netlify/functions": "^2.6.0",
     "@nuxt/image": "^1.7.1",
     "@nuxt/ui": "^2.11.1",
+    "@nuxtjs/color-mode": "^4.0.0",
     "@pinia/nuxt": "^0.5.1",
     "ajv": "^8.12.0",
     "better-sqlite3": "^12.5.0",
@@ -51,7 +53,7 @@
     "pinia": "^2.1.7",
     "queue": "^7.0.0",
     "semver": "^7.6.0",
-    "vite-plugin-checker": "latest",
+    "vite-plugin-checker": "0.9.3",
     "vue-matomo": "^4.2.0",
     "webserial-wrapper": "^1.0.4"
   },

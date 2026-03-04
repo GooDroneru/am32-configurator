@@ -125,16 +125,12 @@ class Flash {
 
                 // extended segment address record
             case 0x02:
-                if (parseInt(content, 16) !== 0) { // ignore if segment is 0
-                    throw new Error('extended segment address record found - NOT IMPLEMENTED!');
-                }
+                // Ignore extended segment address records (x86 only, not used for ARM)
                 break;
 
                 // start segment address record
             case 0x03:
-                if (parseInt(content, 16) !== 0) { // ignore if segment is 0
-                    throw new Error('start segment address record found - NOT IMPLEMENTED!');
-                }
+                // Ignore start segment address records (used for x86, not relevant for ARM)
                 break;
 
                 // extended linear address record

@@ -1,75 +1,60 @@
-# Nuxt 3 Minimal Starter
+# AM32 ESC Configurator
 
-Look at the [Nuxt 3 documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+Web-based configurator for AM32 ESC firmware. Supports 4-way interface and direct USB connection.
 
-## Setup
+## Requirements
 
-Make sure to install the dependencies:
+- [Node.js](https://nodejs.org/) v18+ or [Bun](https://bun.sh/) (recommended)
+- Git
+- A modern browser with Web Serial API support (Chrome / Edge)
+
+## Getting started on a new machine
+
+### 1. Clone the repository
 
 ```bash
-# npm
-npm install
+git clone https://github.com/GooDroneru/am32-configurator.git
+cd am32-configurator
+```
 
-# pnpm
-pnpm install
+### 2. Install dependencies
 
-# yarn
-yarn install
-
-# bun
+```bash
+# using bun (recommended)
 bun install
+
+# or using npm
+npm install
 ```
 
-## Development Server
-
-Start the development server on `http://localhost:3000`:
+### 3. Start the development server
 
 ```bash
-# npm
-npm run dev
-
-# pnpm
-pnpm run dev
-
-# yarn
-yarn dev
-
-# bun
+# using bun
 bun run dev
+
+# or using npm
+npm run dev
 ```
 
-## Production
+The app will be available at `http://localhost:3000`.
 
-Build the application for production:
+## Production build
 
 ```bash
-# npm
-npm run build
-
-# pnpm
-pnpm run build
-
-# yarn
-yarn build
-
-# bun
+# build
 bun run build
-```
 
-Locally preview production build:
-
-```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm run preview
-
-# yarn
-yarn preview
-
-# bun
+# preview the production build locally
 bun run preview
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+## VS Code
+
+The repository includes VS Code tasks for convenience. Use `Ctrl+Shift+P` → **Tasks: Run Task** → **nuxt: dev** to start the dev server.
+
+## Notes
+
+- Web Serial API is only available in **Chrome** or **Edge** (not Firefox/Safari)
+- Connect your ESC via USB or serial adapter before opening the configurator
+- If flashing fails, try **Ignore current MCU layout** option in the Flash Firmware dialog

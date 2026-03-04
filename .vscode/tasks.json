@@ -7,6 +7,32 @@
 			"problemMatcher": [],
 			"label": "bun: dev",
 			"detail": "bun run nuxt dev - package.json"
+		},
+		{
+			"label": "nuxt: dev",
+			"type": "shell",
+			"command": "npm run dev",
+			"isBackground": true,
+			"options": {
+				"env": {
+					"NUXT_TELEMETRY_DISABLED": "1"
+				}
+			},
+			"problemMatcher": {
+				"owner": "nuxt",
+				"pattern": {
+					"regexp": "^$"
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "Nuxt",
+					"endsPattern": "Local:"
+				}
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			}
 		}
 	]
 }
