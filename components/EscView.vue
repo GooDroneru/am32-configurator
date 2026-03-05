@@ -24,7 +24,7 @@
         <div v-else-if="esc?.isError" class="text-black text-xl">
           ESC did not respond!
         </div>
-        <div v-else-if="mcu?.bootloader.pin" class="text-gray-700 w-full flex flex-wrap items-start gap-6">
+        <div v-else-if="mcu" class="text-gray-700 w-full flex flex-wrap items-start gap-6">
           <div>
             <div class="font-bold">
               Bootloader
@@ -34,14 +34,14 @@
                 PIN
               </div>
               <div class="">
-                {{ mcu.bootloader.pin }}
+                {{ bootPinDisplay }}
               </div>
             </div>
             <div class="grid grid-cols-3 text-xs">
               <div class="col-span-2">
                 Version
               </div>
-              <div>{{ mcu.bootloader.version }}</div>
+              <div>{{ bootloaderVersion }}</div>
             </div>
           </div>
           <div>
@@ -49,7 +49,7 @@
               MCU
             </div>
             <div class="text-xs">
-              <div>Type: {{ mcu?.meta.am32.mcuType }}</div>
+              <div>Type: {{ mcuDisplayType }}</div>
             </div>
             <div class="text-xs">
               <div>EEPROM: v{{ layoutVersion }}</div>
@@ -108,6 +108,7 @@
 <script setup lang="ts">
 import type { EepromLayoutKeys } from '~/src/eeprom';
 import type { EscData } from '~/src/mcu';
+import Mcu from '~/src/mcu';
 
 const props = defineProps<{
     isLoading: boolean,
@@ -159,4 +160,28 @@ const padVersion = (version: number) => {
 const toggleSelected = () => {
     emit('toggle', props.index);
 };
+
+const mcuDisplayType = computed(() => {
+  if (!mcu.value) return null;
+  // prefer hardware MCU name resolved from code, then EEPROM mcuType, then fallback to variant name
+  return (mcu.value.meta?.am32 as any)?.hwMcuName ?? mcu.value.meta?.am32?.mcuType ?? new Mcu(mcu.value.meta.signature).getName();
+});
+
+const bootPinDisplay = computed(() => {
+  if (!mcu.value) return '';
+  // use bootloader.pin if available
+  if (mcu.value.bootloader?.pin) return mcu.value.bootloader.pin;
+  // fallback for known signature CH32V203 (0x1f06) -> PA0
+  if (mcu.value.meta?.signature === 0x1f06) return 'PA0';
+  return '';
+});
+
+const bootloaderVersion = computed(() => {
+  if (!mcu.value) return '';
+  const bl = mcu.value.bootloader?.version ?? 0;
+  if (bl === undefined || bl === null) return '';
+  const major = Math.floor(bl / 10);
+  const minor = bl % 10;
+  return `${major}.${minor}`;
+});
 </script>

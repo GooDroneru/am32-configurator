@@ -56,14 +56,14 @@ class Mcu {
                 firmware_start: '0x1000',
                 eeprom_offset: '0xF000'
             },
-            3506: {
-                name: 'ARM64K',
+            '3506': {
+                name: 'K1946VK035',
                 signature: '0x3506',
                 page_size: 1024,
                 flash_size: 65536,
-                flash_offset: '0x08000000',
+                flash_offset: '0x00000000',
                 firmware_start: '0x1000',
-                eeprom_offset: '0xF800'
+                eeprom_offset: '0xF000'
             }
         };
 

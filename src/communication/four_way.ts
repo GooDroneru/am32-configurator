@@ -142,6 +142,12 @@ export class FourWay {
         const info = Flash.getInfo(flash!);
         const mcu = new Mcu(info.meta.signature);
         mcu.setInfo(info);
+        // Store hardware MCU name from Mcu lookup so UI can prefer it over EEPROM string
+        try {
+            (info.meta.am32 as any).hwMcuName = mcu.getName();
+        } catch (e) {
+            // ignore
+        }
 
         const eepromOffset = mcu.getEepromOffset();
 
@@ -164,6 +170,13 @@ export class FourWay {
             const settingsArray = (await this.readAddress(eepromOffset, mcu.getInfo().layoutSize))!.params;
             mcu.getInfo().settings = bufferToSettings(settingsArray, info.settings.LAYOUT_REVISION as number);
             mcu.getInfo().settingsBuffer = settingsArray;
+
+            // Override NAME with our custom brand name
+            try {
+                (mcu.getInfo().settings as any).NAME = 'GOODRONE_ESC';
+            } catch (e) {
+                // ignore
+            }
 
             const [valid, pin] = Mcu.parseBootLoaderPin(mcu.getInfo().bootloader.input);
             if (!valid) {

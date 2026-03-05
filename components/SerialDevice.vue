@@ -117,41 +117,7 @@
             </div>
           </template>
 
-          <div v-if="true" class="flex flex-col gap-4">
-            <UCheckbox
-              v-model="ignoreMcuLayout"
-              :disabled="isFlashingActive"
-              :ui="{
-                label: 'text-sm font-medium text-red-700 dark:text-red-500',
-              }"
-              label="Ignore current mcu layout"
-              color="red"
-            />
-            <UAlert
-              v-if="ignoreMcuLayout"
-              icon="i-heroicons-exclamation-triangle"
-              title="Alert!"
-              variant="subtle"
-              color="red"
-              description="If you flash a wrong mcu type, you will brick the mcu, recovering from this will take some efford!"
-            />
-            <UCheckbox
-              v-model="includePrerelease"
-              :disabled="isFlashingActive"
-              :ui="{
-                label: 'text-sm font-medium text-orange-700 dark:text-orange-500',
-              }"
-              label="Include prerelease versions"
-              color="orange"
-            />
-            <UAlert
-              v-if="includePrerelease"
-              icon="i-heroicons-exclamation-triangle"
-              title="Be aware!"
-              variant="subtle"
-              color="orange"
-              description="Prerelease or release candidate versions might have bugs, if you encounter issues, please join our discord and report them!"
-            />
+          <div class="flex flex-col gap-4">
             <UTabs
               v-model="currentTab"
               :items="flashTabs"
@@ -164,16 +130,14 @@
                     searchable-placeholder="Search a release..."
                     :disabled="isFlashingActive"
                     :options="releasesOptions"
-                    :loading="status === 'pending'"
+                    :loading="isFetchingReleases"
                   />
-                  <USelectMenu
-                    v-model="selectedAsset"
-                    searchable
-                    searchable-placeholder="Search a hex file..."
-                    :options="assets"
-                    :disabled="assets?.length === 0 || !ignoreMcuLayout || isFlashingActive"
-                    :loading="status === 'pending'"
-                  />
+                  <div v-if="selectedAsset" class="text-sm text-gray-400">
+                    Firmware: <span class="text-green-400">{{ selectedAsset }}</span>
+                  </div>
+                  <div v-else-if="!isFetchingReleases" class="text-sm text-red-400">
+                    No firmware found for this device
+                  </div>
                 </div>
               </template>
               <template #local>
@@ -216,9 +180,6 @@
               </template>
             </UTabs>
           </div>
-          <div v-else class="text-green-500 text-center">
-            Flashing local '{{ fileInput ?? 'UNKNOWN' }}'
-          </div>
           <div v-if="serialStore.isFourWay" class="pt-4">
             <div class="text-center mb-2">
               Select ESC(s) to flash:
@@ -244,7 +205,7 @@
                   label="Start flash"
                   :disabled="
                     (!serialStore.isDirectConnect && savingOrApplyingSelectedEscs.length === 0) ||
-                      (currentTab === 0 && (!selectedAsset || selectedAsset === 'NOT FOUND')) ||
+                      (currentTab === 0 && !selectedAsset) ||
                       (currentTab > 0 && !fileInput)
                   "
                   @click="startModalFlash"
@@ -402,6 +363,12 @@ import db from '~/src/db';
 import Flash from '~/src/flash';
 import Mcu, { type EscData } from '~/src/mcu';
 
+// Signature → hex filename mapping for GooDroneru/esc-firmware releases
+const ESC_FIRMWARE_HEX: Record<number, string> = {
+    0x1f06: 'esc-firmware-wch.hex',
+    0x3506: 'esc-firmware-niiet.hex'
+};
+
 const toast = useToast();
 const serialStore = useSerialStore();
 const escStore = useEscStore();
@@ -420,21 +387,48 @@ const applyConfigFile = ref();
 
 const selectedRelease = ref('');
 const selectedAsset = ref('');
-const ignoreMcuLayout = ref(false);
-const includePrerelease = ref(false);
 const savingOrApplyingSelectedEscs = ref<number[]>([]);
 const isFlashingActive = computed(() => escStore.activeTarget > -1);
 
 const progressIsIntermediate = computed(() => !['Writing', 'Verifing'].includes(escStore.step));
 
-const { data, status } = useAsyncData('get-releases', () => useFetch(`/api/files?filter=releases${includePrerelease.value ? '&prereleases' : ''}`), {
-    watch: [includePrerelease]
-});
+const { data, status } = useAsyncData('get-releases', () => useFetch(`/api/files?filter=releases`));
+
+const { data: escFwData, status: escFwStatus } = useAsyncData(
+    'get-esc-firmware-releases',
+    () => useFetch(`/api/esc-firmware/releases`)
+);
 
 const releases = computed(() => {
-    const tmp = data.value?.data as unknown as { data: BlobFolder[] };
-    return tmp?.data ?? [];
+    const minoReleases = (data.value?.data as unknown as { data: BlobFolder[] })?.data ?? [];
+    const ghReleases = (escFwData.value?.data as unknown as { data: BlobFolder[] })?.data ?? [];
+
+    const allChildren: BlobFolder[] = [
+        ...(minoReleases[0]?.children ?? []),
+        ...(ghReleases[0]?.children ?? [])
+    ];
+
+    const seen = new Set<string>();
+    const merged: BlobFolder[] = [];
+    for (const child of allChildren) {
+        if (!seen.has(child.name)) {
+            seen.add(child.name);
+            merged.push(child);
+        }
+    }
+
+    if (merged.length === 0 && minoReleases.length === 0 && ghReleases.length === 0) {
+        return [];
+    }
+
+    return [{
+        name: 'releases',
+        files: [],
+        children: merged
+    }] as BlobFolder[];
 });
+
+const isFetchingReleases = computed(() => status.value === 'pending' || escFwStatus.value === 'pending');
 
 const assets = computed(() => (releases.value?.[0]?.children.find(c => c.name === selectedRelease.value)?.files.map(f => f.name)));
 
@@ -456,13 +450,6 @@ watch(releasesOptions, (d) => {
     }
 });
 
-watch(includePrerelease, (b, a) => {
-    if (b !== a) {
-        selectedAsset.value = '';
-        selectedRelease.value = '';
-    }
-});
-
 const toggleSavingOrApplyingSelectedEsc = (n: number) => {
     if (savingOrApplyingSelectedEscs.value.includes(n)) {
         savingOrApplyingSelectedEscs.value = [
@@ -473,13 +460,18 @@ const toggleSavingOrApplyingSelectedEsc = (n: number) => {
     }
 };
 
+// Auto-select hex by MCU signature
 watchEffect(() => {
     if (assets.value && escStore.escData.length > 0) {
-        const tag = selectedRelease.value;
-        const cleanTag = tag.substring(1).replace(/-rc[1-9]*[0-9]*/gi, '');
-        console.log(`AM32_${escStore.firstValidEscData?.data.meta.am32.fileName ?? 'ERROR'}_${cleanTag}.hex`);
-        const currentAsset = assets.value?.find(a => a === `AM32_${escStore.firstValidEscData?.data.meta.am32.fileName ?? 'ERROR'}_${cleanTag}.hex`);
-        selectedAsset.value = currentAsset ?? 'NOT FOUND';
+        const signature = escStore.firstValidEscData?.data.meta.signature;
+        const targetHex = signature !== undefined ? ESC_FIRMWARE_HEX[signature] : undefined;
+
+        if (targetHex) {
+            const found = assets.value.find(a => a === targetHex);
+            selectedAsset.value = found ?? '';
+        } else {
+            selectedAsset.value = '';
+        }
     }
 });
 
@@ -593,12 +585,6 @@ const connectToDevice = async () => {
             }
 
             if (serialStore.deviceHandles.port.readable && serialStore.deviceHandles.port.writable) {
-                /* if (!serialStore.deviceHandles.reader) {
-                    serialStore.deviceHandles.reader = await serialStore.deviceHandles.port.readable.getReader();
-                }
-                if (!serialStore.deviceHandles.writer) {
-                    serialStore.deviceHandles.writer = await serialStore.deviceHandles.port.writable.getWriter();
-                } */
                 Serial.init(log, logError, logWarning, serialStore.deviceHandles.serial, serialStore.deviceHandles.port);
 
                 log('Connected to device');
@@ -620,7 +606,6 @@ const connectToDevice = async () => {
 
                     if (result === null) {
                         await disconnectFromDevice();
-
                         throw new Error('Cant read or write to device!');
                     }
 
@@ -798,13 +783,6 @@ const disconnectFromDevice = async () => {
 
         Serial.deinit();
 
-        /*
-        console.log(serialStore.deviceHandles);
-        serialStore.deviceHandles.reader?.releaseLock();
-        serialStore.deviceHandles.writer?.releaseLock();
-        await serialStore.deviceHandles.port.close();
-        */
-
         if (serialStore.deviceHandles.stream) {
             serialStore.deviceHandles.stream.reader?.releaseLock();
             serialStore.deviceHandles.stream.writer?.releaseLock();
@@ -812,23 +790,11 @@ const disconnectFromDevice = async () => {
         }
 
         serialStore.$reset();
-
         escStore.$reset();
 
         log('Connection to device closed');
     }
 };
-
-/*
-const startLocalFlash = async (event: Event) => {
-    if (event.target instanceof HTMLInputElement) {
-        const file: File | undefined = event.target.files?.[0];
-        if (file) {
-
-        }
-    }
-};
-*/
 
 const selectFile = (event: Event | FileList) => {
     if (event instanceof Event && event.target instanceof HTMLInputElement && event.target.files?.[0]) {
@@ -857,56 +823,37 @@ const startModalFlash = async () => {
             return await startFlash(dbEntry.text);
         }
 
-        const file: Response = await fetch(url);
-        const blob = await file.blob();
-        const data = await blob.text();
-        if (blob && typeof data === 'string') {
-            await db.downloads.add({
-                url,
-                text: data
-            });
-
-            await startFlash(data);
+        let data: string | null = null;
+        try {
+          const file: Response = await fetch(url);
+          const blob = await file.blob();
+          data = await blob.text();
+        } catch (err) {
+          try {
+            const prox = await fetch(`/api/esc-firmware/download?url=${encodeURIComponent(url)}`);
+            if (prox.ok) {
+              data = await prox.text();
+            } else {
+              throw new Error('Proxy fetch failed');
+            }
+          } catch (err2) {
+            const msg = (err2 as any)?.message ?? String(err2);
+            logStore.logError('Failed to download firmware: ' + msg);
+            toast.add({ title: 'Error', color: 'red', description: 'Failed to download firmware.' });
+            escStore.step = '';
+            escStore.activeTarget = -1;
+            return;
+          }
+        }
+        if (typeof data === 'string') {
+          await db.downloads.add({ url, text: data });
+          await startFlash(data);
         }
     } else if (currentTab.value === 1) {
-        const logStore = useLogStore();
         if (fileInput.value) {
-            if (!serialStore.isDirectConnect && !ignoreMcuLayout.value && escStore.firstValidEscData) {
-                const mcu = new Mcu(escStore.firstValidEscData.data.meta.signature);
-                const eepromOffset = mcu.getEepromOffset();
-                const offset = 0x8000000;
-                const fileNamePlaceOffset = 30;
-
-                const fileFlash = Flash.parseHex(await fileInput.value.text());
-                const tmp = escStore.firstValidEscData.data.meta.am32;
-                if (fileFlash && tmp.mcuType && tmp.fileName) {
-                    const findFileNameBlock = fileFlash.data.find(d =>
-                        (eepromOffset - fileNamePlaceOffset) > (d.address - offset) && (eepromOffset - fileNamePlaceOffset) < (d.address - offset + d.bytes)
-                    );
-                    if (!findFileNameBlock) {
-                        logStore.logError('File name not found in hex, probably too old!');
-                        throw new Error('File name not found in hex file.');
-                    }
-
-                    const hexFileName = new TextDecoder().decode(new Uint8Array(findFileNameBlock.data).slice(0, findFileNameBlock.data.indexOf(0x00)));
-                    if (!hexFileName.endsWith(tmp.mcuType)) {
-                        logStore.logError('Invalid MCU type in hex file.');
-                        throw new Error('Invalid MCU type in hex file.');
-                    }
-
-                    const currentFileName = hexFileName.slice(0, hexFileName.lastIndexOf('_'));
-                    const expectedFileName = tmp.fileName.slice(0, tmp.fileName.lastIndexOf('_'));
-                    if (currentFileName !== expectedFileName) {
-                        logStore.logError('Layout does not match! Aborting flash!');
-                        logStore.logError(`Expected: ${expectedFileName}, given: ${currentFileName}`);
-                        throw new Error('Layout does not match! Aborting flash!');
-                    }
-                }
-            }
             await startFlash(await fileInput.value.text());
         }
     } else if (currentTab.value === 2) {
-        const logStore = useLogStore();
         if (fileInput.value && escStore.firstValidEscData) {
             const amj: AmjType = await fileInput.value.text().then((text: string) => {
                 const parsed = JSON.parse(text);
@@ -965,8 +912,6 @@ const startFlash = async (hexString: string) => {
 
             let i = 0;
 
-            // Hex files may use absolute addresses (e.g. 0x08001000) or relative addresses (e.g. 0x1000).
-            // cmd_SetAddress only encodes 16-bit offsets, so subtract flashOffset only if addresses are absolute.
             const maxHexAddress = parsed.data.reduce((m, d) => Math.max(m, d.address), 0);
             const hexFlashOffset = maxHexAddress >= mcu.getFlashOffset() ? mcu.getFlashOffset() : 0;
 
@@ -1030,7 +975,6 @@ const startFlash = async (hexString: string) => {
                 escStore.step = 'Read ESC';
                 try {
                     const result = await FourWay.getInstance().getInfo(i, 20);
-
                     escStore.escData[i].data = result;
                     escStore.escData[i].isLoading = false;
                 } catch (e) {
@@ -1044,10 +988,7 @@ const startFlash = async (hexString: string) => {
         escStore.activeTarget = -1;
         flashModalOpen.value = false;
 
-        await connectToEsc(); // reconnect after 4-way flash
-        /* if (file_input.value) {
-            file_input.value.value = '';
-        } */
+        await connectToEsc();
     }
 };
 
