@@ -1,5 +1,6 @@
 <template>
   <div>
+
     <div>
       <div v-if="!serialStore.hasSerial">
         <div class="text-3x text-red-500">
@@ -79,11 +80,13 @@
                     :eeprom-version="layoutVersion"
                     :firmware-version="firmwareVersion"
                     :cols="1"
-                    :switches="[{
-                      field: 'DISABLE_STICK_CALIBRATION',
-                      name: 'Disable stick calibration',
-                      minFirmwareVersion: 'v2.19'
-                    }]"
+                    :switches="[
+                      {
+                        field: 'DISABLE_STICK_CALIBRATION',
+                        name: 'Disable stick calibration',
+                        minFirmwareVersion: 'v2.19'
+                      }
+                    ]"
                     @change="onSettingsChange"
                   >
                     <SettingField
@@ -103,6 +106,9 @@
                     :firmware-version="firmwareVersion"
                     :cols="3"
                     :switches="[{
+                      field: 'NO_POLLING_START',
+                      name: 'No polling start'
+                    }, {
                       field: 'STUCK_ROTOR_PROTECTION',
                       name: 'Stuck rotor protection'
                     }, {
@@ -560,6 +566,12 @@
   </div>
 </template>
 <script setup lang="ts">
+import { ref } from 'vue';
+import { applyDefaultEscConfig } from '~/utils/defaultEscConfig';
+
+function applyDefaultConfig() {
+  applyDefaultEscConfig(escStore.selectedEscInfo);
+}
 import type { EepromLayoutKeys } from '~/src/eeprom';
 
 const serialStore = useSerialStore();

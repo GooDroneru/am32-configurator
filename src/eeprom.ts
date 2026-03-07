@@ -10,7 +10,7 @@ export type EepromLayoutField = {
 }
 
 export const EepromLayout = {
-    BOOT_BYTE: {
+    NO_POLLING_START: {
         offset: 0x00,
         size: 1
     },

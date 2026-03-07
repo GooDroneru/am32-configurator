@@ -992,49 +992,13 @@ const startFlash = async (hexString: string) => {
     }
 };
 
+import { applyDefaultEscConfig } from '~/utils/defaultEscConfig';
+
 const applyDefaultConfig = async () => {
-    let eepromVersion = escStore.firstValidEscData?.data.settings.LAYOUT_REVISION as number;
-    if (eepromVersion > 3) {
-        eepromVersion = 2;
-    }
-    const eepromUrl = await fetch(`/api/eeprom/${escStore.firstValidEscData?.data.meta.am32.fileName}?version=${eepromVersion}`)
-        .then((res) => {
-            if (res.status === 200) {
-                return res.text();
-            }
-            return fetch(`/api/eeprom/DEFAULT?version=${eepromVersion}`).then(res => res.text());
-        })
-        .catch(() => null);
-
-    if (!eepromUrl) {
-        throw new Error('Eeprom not found');
-    }
-
-    const file = await fetch(eepromUrl).then(res => res.arrayBuffer());
-
-    if (file) {
-        const buffer = new Uint8Array(file);
-        const settings = bufferToSettings(buffer, eepromVersion);
-
-        settings.STARTUP_MELODY = (new Array(128)).fill(0xFF);
-
-        for (const n of savingOrApplyingSelectedEscs.value) {
-            escStore.escData[n - 1].data.settings = settings;
-            escStore.escData[n - 1].data.settingsDirty = true;
-        }
-
-        await writeConfig().catch((err) => {
-            logError(err.message);
-        });
-
-        if (applyDefaultConfigModalOpen.value) {
-            applyDefaultConfigModalOpen.value = false;
-        }
-    }
-
-    if (applyConfigFile.value) {
-        applyConfigFile.value.input.value = '';
-    }
+  applyDefaultEscConfig(escStore.selectedEscInfo);
+  if (applyDefaultConfigModalOpen.value) {
+    applyDefaultConfigModalOpen.value = false;
+  }
 };
 
 const downloadEscConfig = () => {
