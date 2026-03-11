@@ -86,20 +86,11 @@
         <UIcon class="text-gray-700 w-[40px] h-[40px]" name="i-svg-spinners-blocks-wave" dynamic />
       </div>
       <div v-else-if="mcu" class="">
-        <div v-if="mcu?.settingsBuffer[0] === 0x01">
-          <div>
-            <UCheckbox v-model="isReversed" label="Reversed" />
-          </div>
-          <div>
-            <UCheckbox v-model="is3DMode" label="3D mode" />
-          </div>
+        <div>
+          <UCheckbox v-model="isReversed" label="Reversed" @click.stop />
         </div>
-        <div v-if="mcu?.settingsBuffer[0] === 0x00" class="flex items-center justify-center gap-4">
-          <UIcon name="i-heroicons-exclamation-triangle-16-solid" class="w-10 h-10 text-red-700" /> 
-          <div class="text-red-700 font-bold">
-            <p>Flash was unsuccessfull.</p>
-            <p>Reflash firmware to fix</p>
-          </div>
+        <div>
+          <UCheckbox v-model="is3DMode" label="3D mode" @click.stop />
         </div>
       </div>
     </div>

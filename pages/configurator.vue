@@ -80,13 +80,10 @@
                     :eeprom-version="layoutVersion"
                     :firmware-version="firmwareVersion"
                     :cols="1"
-                    :switches="[
-                      {
-                        field: 'DISABLE_STICK_CALIBRATION',
-                        name: 'Disable stick calibration',
-                        minFirmwareVersion: 'v2.19'
-                      }
-                    ]"
+                    :switches="[{
+                      field: 'DISABLE_STICK_CALIBRATION',
+                      name: 'Disable stick calibration'
+                    }]"
                     @change="onSettingsChange"
                   >
                     <SettingField
@@ -122,20 +119,17 @@
                       name: '30ms interval telemetry'
                     }, {
                       field: 'VARIABLE_PWM_FREQUENCY',
-                      name: 'Variable PWM',
-                      maxFirmwareVersion: 'v2.17'
+                      name: 'Variable PWM'
                     }, {
                       field: 'COMPLEMENTARY_PWM',
                       name: 'Complementary PWM'
                     }, {
                       field: 'AUTO_ADVANCE',
-                      name: 'Auto timing advance',
-                      minFirmwareVersion: 'v2.16'
+                      name: 'Auto timing advance'
                     }]"
                     :radios="[{
                       field: 'VARIABLE_PWM_FREQUENCY',
                       name: 'PWM Type',
-                      minFirmwareVersion: 'v2.18',
                       values: [{
                         name: 'Fixed',
                         value: 0
@@ -283,13 +277,11 @@
                     :firmware-version="firmwareVersion"
                     :switches="[{
                       field: 'LOW_VOLTAGE_CUTOFF',
-                      name: 'Low voltage cut off',
-                      maxFirmwareVersion: 'v2.18'
+                      name: 'Low voltage cut off'
                     }]"
                     :radios="[{
                       field: 'LOW_VOLTAGE_CUTOFF',
                       name: 'Low voltage cut off',
-                      minFirmwareVersion: 'v2.19',
                       values: [{
                         name: 'Off',
                         value: 0
@@ -321,7 +313,7 @@
                       name="Current limit"
                       type="number"
                       :min="0"
-                      :max="202"
+                      :max="100"
                       :step="2"
                       :display-factor="2"
                       :disabled-value="202"
@@ -436,18 +428,9 @@
                     :cols="3"
                     :eeprom-version="layoutVersion"
                     :firmware-version="firmwareVersion"
-                    :switches="[{
-                      field: 'BRAKE_ON_STOP',
-                      name: 'Brake on stop',
-                      maxFirmwareVersion: 'v2.18'
-                    }, {
-                      field: 'RC_CAR_REVERSING',
-                      name: 'Car type reverse breaking'
-                    }]"
                     :radios="[{
                       field: 'BRAKE_ON_STOP',
                       name: 'Brake on stop',
-                      minFirmwareVersion: 'v2.19',
                       values: [{
                         name: 'Off',
                         value: 0
