@@ -186,7 +186,7 @@
             </div>
             <div class="w-full text-center flex justify-center gap-2">
               <div
-                v-for="n of escStore.selectedEscInfo.length"
+                v-for="n in availableEscs"
                 :key="n"
                 class="transition-all w-8 h-8 rounded-full text-center border border-gray-500 bg-gray-800 p-1 cursor-pointer"
                 :class="{
@@ -248,7 +248,7 @@
               </div>
               <div class="w-full text-center flex justify-center gap-2">
                 <div
-                  v-for="n of escStore.selectedEscInfo.length"
+                  v-for="n in availableEscs"
                   :key="n"
                   class="transition-all w-8 h-8 rounded-full text-center border border-gray-500 bg-gray-800 p-1 cursor-pointer"
                   :class="{
@@ -287,7 +287,7 @@
               </div>
               <div class="w-full text-center flex justify-center gap-2">
                 <div
-                  v-for="n of escStore.selectedEscInfo.length"
+                  v-for="n in availableEscs"
                   :key="n"
                   class="transition-all w-8 h-8 rounded-full text-center border border-gray-500 bg-gray-800 p-1 cursor-pointer"
                   :class="{
@@ -327,7 +327,7 @@
               </div>
               <div class="w-full text-center flex justify-center gap-2">
                 <div
-                  v-for="n of escStore.selectedEscInfo.length"
+                  v-for="n in availableEscs"
                   :key="n"
                   class="transition-all w-8 h-8 rounded-full text-center border border-gray-500 bg-gray-800 p-1 cursor-pointer"
                   :class="{
@@ -373,6 +373,14 @@ const toast = useToast();
 const serialStore = useSerialStore();
 const escStore = useEscStore();
 const { escData } = storeToRefs(escStore);
+
+// Computed: available (non-error) ESCs (1-based index)
+const availableEscs = computed(() =>
+  escData.value
+    .map((e, i) => ({ ...e, index: i + 1 }))
+    .filter(e => !e.isError)
+    .map(e => e.index)
+);
 const { log, logWarning, logError } = useLogStore();
 const usbFCVendorIds = [0x0483, 0x2E3C, 0x2E8A, 0x1209, 0x26AC, 0x27AC, 0x2DAE, 0x3162, 0x35A7];
 const usbDirectVendorIds = [0x1A86, 0x0403, 0x4348, 0x26BA, 0x10C4];
