@@ -3,17 +3,7 @@
     <div>
       <div class="p-4 max-w-[1400px] mx-auto pb-16">
         <div class="flex flex-col gap-4">
-          <UCard>
-            <UContainer>
-              <h1 class="text-3xl font-bold mb-4">
-                Sponsors
-              </h1>
-              <image-spinner
-                :images="images"
-              />
-            </UContainer>
-          </UCard>
-          <UCard>
+<UCard>
             <UContainer>
               <h1 class="text-3xl font-bold mb-4">
                 AM32 MultiRotor ESC Firmware
@@ -61,11 +51,6 @@
                 <p class="mb-4">
                   Visit the <a href="#">latest release</a> for firmware updates.
                 </p>
-                <p>
-                  Download the Multi_ESC config tool under the <NuxtLink class="underline text-red-400" to="/downloads">
-                    Downloads
-                  </NuxtLink> section.
-                </p>
               </div>
 
               <div class="mb-8">
@@ -73,16 +58,16 @@
                   Support & Community
                 </h2>
                 <p class="mb-4">
-                  Join the discord server for support and community interaction.
+                  Join our Telegram channel for support and community interaction.
                 </p>
                 <UButton
-                  to="https://discord.com/invite/h7ddYMmEVV"
+                  to="https://t.me/GoodRoneRnD"
                   target="_blank"
-                  icon="i-mdi-discord"
+                  icon="i-mdi-telegram"
                   variant="outline"
                   color="blue"
                 >
-                  Join Discord
+                  Telegram
                 </UButton>
               </div>
 
@@ -135,66 +120,4 @@
   </div>
 </template>
 <script setup lang="ts">
-import holybroImage from '~/assets/logos/holybro.png';
-import skystars from '~/assets/logos/skystars.png';
-import airbotImage from '~/assets/logos/Airbot_Logo.svg';
-import kissUltraImage from '~/assets/logos/kiss-ultra.svg';
-import flashhobbyImage from '~/assets/logos/flashhobby2.svg';
-import tbsImage from '~/assets/logos/tbs_logo.svg';
-import sequreImage from '~/assets/logos/sequre.png';
-import brotherHobbyImage from '~/assets/logos/brotherhobby.png';
-import vimdronesImage from '~/assets/logos/vimdrones_logo_white.png';
-import gnbImage from '~/assets/logos/gnb.png';
-import flytexImage from '~/assets/logos/flytex_logo_full_white.svg';
-import radiomasterImage from '~/assets/logos/RadioMasterLogo.svg';
-import flycolorImage from '~/assets/logos/flycolor.svg';
-
-const images = [{
-    path: radiomasterImage,
-    url: 'https://www.radiomasterrc.com/',
-    class: 'invert'
-}, {
-    path: airbotImage,
-    url: 'https://store.airbot.racing/',
-    class: 'invert'
-}, {
-    path: skystars,
-    url: 'https://skystars-rc.com/'
-}, {
-    path: holybroImage,
-    url: 'https://holybro.com/',
-    class: 'invert'
-}, {
-    path: sequreImage,
-    url: 'https://sequremall.com/',
-    class: 'grayscale contrast-200 brightness-200'
-}, {
-    path: brotherHobbyImage,
-    url: 'https://www.brotherhobbystore.com/',
-    class: 'invert'
-}, {
-    path: kissUltraImage,
-    url: 'https://store.kiss-ultra.com/',
-    class: 'invert'
-}, {
-    path: vimdronesImage,
-    url: 'https://shop.vimdrones.com/'
-}, {
-    path: flashhobbyImage,
-    url: 'https://www.flashhobby.com/',
-    class: 'invert'
-}, {
-    path: gnbImage,
-    url: 'https://www.gaoneng.shop'
-}, {
-    path: tbsImage,
-    url: 'https://www.team-blacksheep.com/'
-}, {
-    path: flytexImage,
-    url: 'https://flytex.pro/'
-}, {
-    path: flycolorImage,
-    url: 'https://www.fly-color.net/',
-    class: 'invert'
-}];
 </script>
