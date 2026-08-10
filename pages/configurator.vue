@@ -556,6 +556,43 @@
                       @change="onSettingsChange"
                     />
                   </SettingFieldGroup>
+                  <SettingFieldGroup
+                    v-if="isInEEpromVersion(layoutVersion, 4)"
+                    title="RPM control"
+                    :cols="2"
+                    :switches="[{
+                      field: 'DRIVE_BY_RPM',
+                      name: 'Drive by RPM'
+                    }]"
+                    @change="onSettingsChange"
+                  >
+                    <SettingField
+                      :esc-info="escStore.selectedEscInfo"
+                      field="MAXIMUM_RPM"
+                      name="Maximum RPM"
+                      type="number"
+                      :min="200"
+                      :max="50000"
+                      :step="200"
+                      :display-factor="200"
+                      :disabled="(value: number) => escStore.firstValidEscData?.data.settings.DRIVE_BY_RPM !== 1"
+                      show-value
+                      @change="onSettingsChange"
+                    />
+                    <SettingField
+                      :esc-info="escStore.selectedEscInfo"
+                      field="MINIMUM_RPM"
+                      name="Minimum RPM"
+                      type="number"
+                      :min="200"
+                      :max="50000"
+                      :step="200"
+                      :display-factor="200"
+                      :disabled="(value: number) => escStore.firstValidEscData?.data.settings.DRIVE_BY_RPM !== 1"
+                      show-value
+                      @change="onSettingsChange"
+                    />
+                  </SettingFieldGroup>
                 </div>
               </div>
             </div>

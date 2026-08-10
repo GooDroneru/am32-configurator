@@ -70,6 +70,21 @@ export const EepromLayout = {
         size: 1,
         minEepromVersion: 3
     },
+    DRIVE_BY_RPM: {
+        offset: 0x0E,
+        size: 1,
+        minEepromVersion: 4
+    },
+    MAXIMUM_RPM: {
+        offset: 0x0F,
+        size: 1,
+        minEepromVersion: 4
+    },
+    MINIMUM_RPM: {
+        offset: 0x10,
+        size: 1,
+        minEepromVersion: 4
+    },
     MOTOR_DIRECTION: {
         offset: 0x11,
         size: 1

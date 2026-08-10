@@ -33,6 +33,9 @@ export const DEFAULT_ESC_CONFIG: Record<string, number> = {
   BRAKE_STRENGTH: 10,
   RUNNING_BRAKE_LEVEL: 10,
   ACTIVE_BRAKE_POWER: 2, // 2% duty cycle
+  DRIVE_BY_RPM: 0, // Off
+  MAXIMUM_RPM: 50, // 10000 rpm
+  MINIMUM_RPM: 5, // 1000 rpm
   SERVO_LOW_THRESHOLD: 128, // (1006 - 750) / 2 = 128
   SERVO_HIGH_THRESHOLD: 128, // (2006 - 1750) / 2 = 128
   SERVO_NEUTRAL: 128, // (1502 - 1374) / 1 = 128
