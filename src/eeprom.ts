@@ -70,6 +70,11 @@ export const EepromLayout = {
         size: 1,
         minEepromVersion: 3
     },
+    BRAKE_ON_ZERO_THROTTLE: {
+        offset: 0x0D,
+        size: 1,
+        minEepromVersion: 3
+    },
     DRIVE_BY_RPM: {
         offset: 0x0E,
         size: 1,

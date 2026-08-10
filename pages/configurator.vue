@@ -501,6 +501,15 @@
                         {{ value === 0 ? 'Off' : `${value} % duty cycle` }}
                       </template>
                     </SettingField>
+                    <SettingField
+                      :esc-info="escStore.selectedEscInfo"
+                      field="BRAKE_ON_ZERO_THROTTLE"
+                      name="Brake on zero throttle"
+                      type="select"
+                      :options="brakeOnZeroThrottleOptions"
+                      :disabled="(value: number) => escStore.firstValidEscData?.data.settings.RC_CAR_REVERSING !== 0"
+                      @change="onSettingsChange"
+                    />
                   </SettingFieldGroup>
                   <SettingFieldGroup
                     title="Servo settings"
@@ -593,6 +602,13 @@
                       @change="onSettingsChange"
                     />
                   </SettingFieldGroup>
+                  <RpmCalculator
+                    :minimum-rpm="escStore.firstValidEscData?.data.settings.MINIMUM_RPM as number"
+                    :maximum-rpm="escStore.firstValidEscData?.data.settings.MAXIMUM_RPM as number"
+                    :motor-kv="escStore.firstValidEscData?.data.settings.MOTOR_KV as number"
+                    :motor-poles="escStore.firstValidEscData?.data.settings.MOTOR_POLES as number"
+                    :drive-by-rpm="escStore.firstValidEscData?.data.settings.DRIVE_BY_RPM as number"
+                  />
                 </div>
               </div>
             </div>
@@ -662,6 +678,49 @@ const protocolOptions = [
     {
         value: 4,
         label: 'EDT ARM'
+    }
+];
+
+const brakeOnZeroThrottleOptions = [
+    {
+        value: 0,
+        label: 'Off'
+    },
+    {
+        value: 1,
+        label: 'Coast'
+    },
+    {
+        value: 2,
+        label: 'Motor brake'
+    },
+    {
+        value: 3,
+        label: 'Delayed 5s'
+    },
+    {
+        value: 4,
+        label: 'Delayed 6s'
+    },
+    {
+        value: 5,
+        label: 'Delayed 7s'
+    },
+    {
+        value: 6,
+        label: 'Delayed 8s'
+    },
+    {
+        value: 7,
+        label: 'Delayed 9s'
+    },
+    {
+        value: 8,
+        label: 'Delayed 10s'
+    },
+    {
+        value: 9,
+        label: 'Delayed 11s'
     }
 ];
 
