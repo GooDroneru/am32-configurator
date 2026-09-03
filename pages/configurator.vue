@@ -636,8 +636,12 @@ const firmwareVersion = computed(() => `${escStore.firstValidEscData?.data.setti
 const layoutVersion = computed(() => escStore.firstValidEscData?.data.settings.LAYOUT_REVISION as number ?? 0);
 
 const onChange = (payload: { index: number, field: EepromLayoutKeys, value: boolean }) => {
-    escStore.escData[payload.index].data.settingsDirty = escStore.escData[payload.index].data.settings[payload.field] !== (payload.value ? 1 : 0);
-    escStore.escData[payload.index].data.settings[payload.field] = (payload.value ? 1 : 0);
+    const data = escStore.escData[payload.index]?.data;
+    if (!data) {
+        return;
+    }
+    data.settingsDirty = data.settings[payload.field] !== (payload.value ? 1 : 0);
+    data.settings[payload.field] = (payload.value ? 1 : 0);
 };
 
 const onToggle = (index: number) => {

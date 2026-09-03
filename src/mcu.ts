@@ -40,8 +40,16 @@ export interface McuInfo {
 export interface EscData {
     isLoading: boolean;
     isError: boolean;
+    data?: McuInfo;
+}
+
+export interface ValidEscData extends EscData {
     data: McuInfo;
 }
+
+export const isValidEscData = (esc: EscData): esc is ValidEscData => {
+    return !esc.isError && !!esc.data;
+};
 
 class Mcu {
     static variants: {

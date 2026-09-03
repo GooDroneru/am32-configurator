@@ -25,10 +25,10 @@
         <div class="flex gap-2 items-center">
           <UIcon name="i-fluent-serial-port-16-filled" dynamic :class="[serialStore.hasConnection ? 'text-green-500' : 'text-red-500']" />
         </div>
-        <div v-if="serialStore.hasConnection && (serialStore.mspData.motorCount > 0 || serialStore.isDirectConnect)" class="w-full flex justify-between gap-4">
+        <div v-if="serialStore.hasConnection && (escSlotCount > 0 || serialStore.isDirectConnect)" class="w-full flex justify-between gap-4">
           <div class="flex gap-2">
             <UChip
-              v-for="n of serialStore.mspData.motorCount"
+              v-for="n of escSlotCount"
               :key="n"
               :text="n"
               size="2xl"
@@ -186,15 +186,15 @@
             </div>
             <div class="w-full text-center flex justify-center gap-2">
               <div
-                v-for="n of escStore.selectedEscInfo.length"
-                :key="n"
+                v-for="entry of validEscEntries"
+                :key="entry.index"
                 class="transition-all w-8 h-8 rounded-full text-center border border-gray-500 bg-gray-800 p-1 cursor-pointer"
                 :class="{
-                  'ring-2 ring-green-500 bg-green-300/30': savingOrApplyingSelectedEscs.includes(n)
+                  'ring-2 ring-green-500 bg-green-300/30': savingOrApplyingSelectedEscs.includes(entry.index + 1)
                 }"
-                @click="toggleSavingOrApplyingSelectedEsc(n);"
+                @click="toggleSavingOrApplyingSelectedEsc(entry.index + 1);"
               >
-                {{ n }}
+                {{ entry.index + 1 }}
               </div>
             </div>
           </div>
@@ -248,15 +248,15 @@
               </div>
               <div class="w-full text-center flex justify-center gap-2">
                 <div
-                  v-for="n of escStore.selectedEscInfo.length"
-                  :key="n"
+                  v-for="entry of validEscEntries"
+                  :key="entry.index"
                   class="transition-all w-8 h-8 rounded-full text-center border border-gray-500 bg-gray-800 p-1 cursor-pointer"
                   :class="{
-                    'ring-2 ring-green-500 bg-green-300/30': savingOrApplyingSelectedEscs.includes(n)
+                    'ring-2 ring-green-500 bg-green-300/30': savingOrApplyingSelectedEscs.includes(entry.index + 1)
                   }"
-                  @click="toggleSavingOrApplyingSelectedEsc(n);"
+                  @click="toggleSavingOrApplyingSelectedEsc(entry.index + 1);"
                 >
-                  {{ n }}
+                  {{ entry.index + 1 }}
                 </div>
               </div>
             </div>
@@ -287,15 +287,15 @@
               </div>
               <div class="w-full text-center flex justify-center gap-2">
                 <div
-                  v-for="n of escStore.selectedEscInfo.length"
-                  :key="n"
+                  v-for="entry of validEscEntries"
+                  :key="entry.index"
                   class="transition-all w-8 h-8 rounded-full text-center border border-gray-500 bg-gray-800 p-1 cursor-pointer"
                   :class="{
-                    'ring-2 ring-green-500 bg-green-300/30': savingOrApplyingSelectedEscs.includes(n)
+                    'ring-2 ring-green-500 bg-green-300/30': savingOrApplyingSelectedEscs.includes(entry.index + 1)
                   }"
-                  @click="toggleSavingOrApplyingSelectedEsc(n);"
+                  @click="toggleSavingOrApplyingSelectedEsc(entry.index + 1);"
                 >
-                  {{ n }}
+                  {{ entry.index + 1 }}
                 </div>
               </div>
             </div>
@@ -327,15 +327,15 @@
               </div>
               <div class="w-full text-center flex justify-center gap-2">
                 <div
-                  v-for="n of escStore.selectedEscInfo.length"
-                  :key="n"
+                  v-for="entry of validEscEntries"
+                  :key="entry.index"
                   class="transition-all w-8 h-8 rounded-full text-center border border-gray-500 bg-gray-800 p-1 cursor-pointer"
                   :class="{
-                    'ring-2 ring-green-500 bg-green-300/30': savingOrApplyingSelectedEscs.includes(n)
+                    'ring-2 ring-green-500 bg-green-300/30': savingOrApplyingSelectedEscs.includes(entry.index + 1)
                   }"
-                  @click="toggleSavingOrApplyingSelectedEsc(n);"
+                  @click="toggleSavingOrApplyingSelectedEsc(entry.index + 1);"
                 >
-                  {{ n }}
+                  {{ entry.index + 1 }}
                 </div>
               </div>
             </div>
@@ -361,7 +361,7 @@ import serial from '~/src/communication/serial';
 import Serial from '~/src/communication/serial';
 import db from '~/src/db';
 import Flash from '~/src/flash';
-import Mcu, { type EscData } from '~/src/mcu';
+import Mcu, { type EscData, type McuInfo } from '~/src/mcu';
 
 // Signature → hex filename mapping for GooDroneru/esc-firmware releases
 const ESC_FIRMWARE_HEX: Record<number, string> = {
@@ -389,6 +389,15 @@ const selectedRelease = ref('');
 const selectedAsset = ref('');
 const savingOrApplyingSelectedEscs = ref<number[]>([]);
 const isFlashingActive = computed(() => escStore.activeTarget > -1);
+
+// Valid (responding) ESCs with their real motor slot index
+const validEscEntries = computed(() =>
+    escStore.escData
+        .map((esc, index) => ({ esc, index }))
+        .filter(entry => !entry.esc.isError && entry.esc.data)
+);
+
+const escSlotCount = computed(() => escStore.escData.length || serialStore.mspData.motorCount);
 
 const progressIsIntermediate = computed(() => !['Writing', 'Verifing'].includes(escStore.step));
 
@@ -459,6 +468,15 @@ const toggleSavingOrApplyingSelectedEsc = (n: number) => {
         savingOrApplyingSelectedEscs.value.push(n);
     }
 };
+
+// Preselect the ESCs currently marked as selected whenever a modal opens
+watch([flashModalOpen, applyDefaultConfigModalOpen, saveConfigModalOpen, applyConfigModalOpen], (opened) => {
+    if (opened.some(isOpen => isOpen)) {
+        savingOrApplyingSelectedEscs.value = validEscEntries.value
+            .filter(entry => entry.esc.data?.isSelected)
+            .map(entry => entry.index + 1);
+    }
+});
 
 // Auto-select hex by MCU signature
 watchEffect(() => {
@@ -682,6 +700,7 @@ const connectToEsc = async () => {
 
         escData.value = [];
         escStore.count = 0;
+        savingOrApplyingSelectedEscs.value = [];
         escStore.isLoading = true;
 
         for (let i = 0; i < escStore.expectedCount; ++i) {
@@ -706,19 +725,21 @@ const connectToEsc = async () => {
         escStore.isLoading = false;
     }
 
-    if (
-        escStore.escData.filter(
-            e => e.data.settingsBuffer.filter(s => s === 0xFF).length === e.data.settingsBuffer.length ||
-                  e.data.settingsBuffer.reduce((acc, cur) => acc + cur, 0) === 0
-        ).length > 0
-    ) {
+    const emptySettingsEscNumbers = escStore.escData
+        .map((esc, i) => ({ esc, i }))
+        .filter(({ esc }) => esc.data?.settingsBuffer &&
+            (esc.data.settingsBuffer.filter(s => s === 0xFF).length === esc.data.settingsBuffer.length ||
+              esc.data.settingsBuffer.reduce((acc, cur) => acc + cur, 0) === 0))
+        .map(({ i }) => i + 1);
+
+    if (emptySettingsEscNumbers.length > 0) {
         toast.add({
             title: 'Error',
             color: 'red',
             description: 'Found empty settings, flashing default settings now!'
         });
 
-        savingOrApplyingSelectedEscs.value = escStore.escData.map((_, i) => i + 1);
+        savingOrApplyingSelectedEscs.value = emptySettingsEscNumbers;
 
         applyDefaultConfig();
     }
@@ -726,13 +747,20 @@ const connectToEsc = async () => {
     let needToSave = false;
 
     for (const esc of escStore.escData) {
+        if (!esc.data) {
+            continue;
+        }
         const firmwareVersion = `${esc.data.settings.MAIN_REVISION}.${esc.data.settings.SUB_REVISION}`;
         if (firmwareVersion.endsWith('2.19')) {
             if (esc.data.settings.TIMING_ADVANCE as number < 10) {
                 needToSave = true;
                 for (let i = 0; i < escStore.escData.length; ++i) {
-                    escStore.escData[i].data.settingsDirty = true;
-                    escStore.escData[i].data.settings.TIMING_ADVANCE = 16;
+                    const data = escStore.escData[i].data;
+                    if (!data) {
+                        continue;
+                    }
+                    data.settingsDirty = true;
+                    data.settings.TIMING_ADVANCE = 16;
                 }
             }
         }
@@ -753,15 +781,16 @@ const writeConfig = async () => {
         escStore.isSaving = true;
 
         for (let i = 0; i < escStore.escData.length; ++i) {
-            if (!escStore.escData[i].isError && escStore.escData[i].data.settingsDirty) {
-                const result = await FourWay.getInstance().writeSettings(i, escStore.escData[i].data).catch((err) => {
+            const data = escStore.escData[i]?.data;
+            if (!escStore.escData[i].isError && data && data.settingsDirty) {
+                const result = await FourWay.getInstance().writeSettings(i, data).catch((err) => {
                     logError(`Error writing settings to ESC #${i + 1}: ${err.message}`);
                     escStore.escData[i].isError = true;
                     return null;
                 });
                 if (result) {
-                    escStore.escData[i].data.settingsBuffer = result;
-                    escStore.escData[i].data.settingsDirty = false;
+                    data.settingsBuffer = result;
+                    data.settingsDirty = false;
                 }
             }
         }
@@ -994,16 +1023,23 @@ const startFlash = async (hexString: string) => {
 
 import { applyDefaultEscConfig } from '~/utils/defaultEscConfig';
 
-const applyDefaultConfig = async () => {
-  applyDefaultEscConfig(escStore.selectedEscInfo);
-  if (applyDefaultConfigModalOpen.value) {
-    applyDefaultConfigModalOpen.value = false;
-  }
+const applyDefaultConfig = () => {
+    const targets = savingOrApplyingSelectedEscs.value
+        .map(n => escStore.escData[n - 1]?.data)
+        .filter((data): data is McuInfo => !!data);
+    applyDefaultEscConfig(targets.length > 0 ? targets : escStore.selectedEscInfo);
+    if (applyDefaultConfigModalOpen.value) {
+        applyDefaultConfigModalOpen.value = false;
+    }
 };
 
 const downloadEscConfig = () => {
     for (const n of savingOrApplyingSelectedEscs.value) {
-        const blob = new Blob([escStore.escData[n - 1].data.settingsBuffer.buffer as ArrayBuffer], {
+        const settingsBuffer = escStore.escData[n - 1]?.data?.settingsBuffer;
+        if (!settingsBuffer) {
+            continue;
+        }
+        const blob = new Blob([settingsBuffer.buffer as ArrayBuffer], {
             type: 'application/octet-stream'
         });
         const link = document.createElement('a');
@@ -1022,8 +1058,12 @@ const applyConfig = async () => {
             const settings = bufferToSettings(buffer, escStore.firstValidEscData?.data.settings.LAYOUT_REVISION as number);
 
             for (const n of savingOrApplyingSelectedEscs.value) {
-                escStore.escData[n - 1].data.settings = settings;
-                escStore.escData[n - 1].data.settingsDirty = true;
+                const data = escStore.escData[n - 1]?.data;
+                if (!data) {
+                    continue;
+                }
+                data.settings = settings;
+                data.settingsDirty = true;
             }
 
             await writeConfig();
