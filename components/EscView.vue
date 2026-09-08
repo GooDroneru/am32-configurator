@@ -87,11 +87,17 @@
       </div>
       <div v-else-if="mcu" class="">
         <div v-if="mcu?.settingsBuffer[0] === 0x01">
-          <div>
+          <div class="flex items-center gap-1">
             <UCheckbox v-model="isReversed" label="Reversed" />
+            <UTooltip text="Реверс вращения мотора. Меняйте только при выключенном питании — мотор может дёрнуться." :popper="{ placement: 'right' }">
+              <UIcon name="i-material-symbols-help-outline" class="text-blue-500 text-lg" />
+            </UTooltip>
           </div>
-          <div>
+          <div class="flex items-center gap-1">
             <UCheckbox v-model="is3DMode" label="3D mode" />
+            <UTooltip text="3D-режим: среднее положение газа — стоп, ниже — задний ход, выше — вперёд." :popper="{ placement: 'right' }">
+              <UIcon name="i-material-symbols-help-outline" class="text-blue-500 text-lg" />
+            </UTooltip>
           </div>
         </div>
         <div v-if="mcu?.settingsBuffer[0] === 0x00" class="flex items-center justify-center gap-4">

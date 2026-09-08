@@ -403,18 +403,19 @@ const progressIsIntermediate = computed(() => !['Writing', 'Verifing'].includes(
 
 const { data, status } = useAsyncData('get-releases', () => useFetch(`/api/files?filter=releases`));
 
-const { data: escFwData, status: escFwStatus } = useAsyncData(
-    'get-esc-firmware-releases',
-    () => useFetch(`/api/esc-firmware/releases`)
-);
+const { stableReleases: firmwareIndexReleases, status: firmwareIndexStatus } = useFirmwareIndex();
 
 const releases = computed(() => {
     const minoReleases = (data.value?.data as unknown as { data: BlobFolder[] })?.data ?? [];
-    const ghReleases = (escFwData.value?.data as unknown as { data: BlobFolder[] })?.data ?? [];
+    const indexChildren: BlobFolder[] = firmwareIndexReleases.value.map(r => ({
+        name: r.name,
+        files: r.files,
+        children: []
+    }));
 
     const allChildren: BlobFolder[] = [
         ...(minoReleases[0]?.children ?? []),
-        ...(ghReleases[0]?.children ?? [])
+        ...indexChildren
     ];
 
     const seen = new Set<string>();
@@ -426,7 +427,7 @@ const releases = computed(() => {
         }
     }
 
-    if (merged.length === 0 && minoReleases.length === 0 && ghReleases.length === 0) {
+    if (merged.length === 0 && minoReleases.length === 0 && firmwareIndexReleases.value.length === 0) {
         return [];
     }
 
@@ -437,7 +438,7 @@ const releases = computed(() => {
     }] as BlobFolder[];
 });
 
-const isFetchingReleases = computed(() => status.value === 'pending' || escFwStatus.value === 'pending');
+const isFetchingReleases = computed(() => status.value === 'pending' || firmwareIndexStatus.value === 'pending');
 
 const assets = computed(() => (releases.value?.[0]?.children.find(c => c.name === selectedRelease.value)?.files.map(f => f.name)));
 

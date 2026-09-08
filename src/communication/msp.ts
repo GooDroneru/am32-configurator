@@ -193,6 +193,20 @@ export class Msp {
         }
     }
 
+    /**
+     * Set motor throttle values via MSP_SET_MOTOR.
+     * Accepts up to 8 values, each clamped to the 1000-2000 range (1000 = stop).
+     */
+    setMotor (motors: number[]) {
+        const data = new Uint8Array(16);
+        for (let i = 0; i < 8; i += 1) {
+            const value = Math.min(2000, Math.max(1000, Math.round(motors[i] ?? 1000)));
+            data[i * 2] = value & 255;
+            data[i * 2 + 1] = value >> 8 & 255;
+        }
+        return this.sendWithPromise(MSP_COMMANDS.MSP_SET_MOTOR, data);
+    }
+
     getTypeMotorCommand (type: MspData['type']) {
         switch (type) {
         case 'inav':
