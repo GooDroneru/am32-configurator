@@ -29,16 +29,8 @@
             <div class="font-bold">
               Bootloader
             </div>
-            <div class="grid grid-cols-3 text-xs">
-              <div class="col-span-2">
-                PIN
-              </div>
-              <div class="">
-                {{ bootPinDisplay }}
-              </div>
-            </div>
-            <div class="grid grid-cols-3 text-xs">
-              <div class="col-span-2">
+            <div class="grid grid-cols-2 text-xs">
+              <div>
                 Version
               </div>
               <div>{{ bootloaderVersion }}</div>
@@ -70,7 +62,7 @@
                 Version
               </div>
               <div v-if="Number(getSettingValue('MAIN_REVISION')) > 1" class="col-span-3">
-                {{ getSettingValue('MAIN_REVISION') }}.{{ padVersion(getSettingValue<number>('SUB_REVISION') ?? 0) }}
+                {{ getSettingValue('MAIN_REVISION') }}.{{ getSettingValue<number>('SUB_REVISION') ?? 0 }}
               </div>
               <div v-else class="col-span-3 text-orange-300 font-bold flex items-center gap-2">
                 <UTooltip text="Default eeprom! Press disconnect and power cycle ESC!" :popper="{ placement: 'right' }">
@@ -159,10 +151,6 @@ function getSettingValue<T> (name: EepromLayoutKeys): T | null {
     return mcu.value?.settings[name] as T ?? null;
 }
 
-const padVersion = (version: number) => {
-    return padStr(version + '', 2, '0');
-};
-
 const toggleSelected = () => {
     emit('toggle', props.index);
 };
@@ -173,21 +161,14 @@ const mcuDisplayType = computed(() => {
   return (mcu.value.meta?.am32 as any)?.hwMcuName ?? mcu.value.meta?.am32?.mcuType ?? new Mcu(mcu.value.meta.signature).getName();
 });
 
-const bootPinDisplay = computed(() => {
-  if (!mcu.value) return '';
-  // use bootloader.pin if available
-  if (mcu.value.bootloader?.pin) return mcu.value.bootloader.pin;
-  // fallback for known signature CH32V203 (0x1f06) -> PA0
-  if (mcu.value.meta?.signature === 0x1f06) return 'PA0';
-  return '';
-});
-
 const bootloaderVersion = computed(() => {
-  if (!mcu.value) return '';
-  const bl = mcu.value.bootloader?.version ?? 0;
-  if (bl === undefined || bl === null) return '';
-  const major = Math.floor(bl / 10);
-  const minor = bl % 10;
-  return `${major}.${minor}`;
+    if (!mcu.value) {
+        return '';
+    }
+    const bl = mcu.value.bootloader?.version ?? 0;
+    if (bl === undefined || bl === null) {
+        return '';
+    }
+    return `${Math.floor(bl / 10)}.${bl % 10}`;
 });
 </script>

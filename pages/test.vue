@@ -105,6 +105,13 @@
               />
             </div>
           </div>
+          <UAlert
+            color="amber"
+            variant="soft"
+            icon="i-material-symbols-volume-up"
+            title="Дождитесь звукового сигнала от мотора"
+            description="Полётник включит моторные выходы, и ESC подаст три восходящих сигнала — это значит, что сигнал проходит. Управление активно только после установки галочки выше — до этого регуляторы моторов заблокированы."
+          />
           <div
             v-if="battery && battery.cellCount > 0"
             class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm"

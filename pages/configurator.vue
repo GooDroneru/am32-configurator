@@ -801,7 +801,7 @@ const MORSE_DIGITS: Record<string, string> = {
 const morseErrors = [10, 11, 12].map((code) => {
     const descriptions: Record<number, string> = {
         10: 'Нет входного сигнала — ESC перезагружается. Проверьте приёмник и подключение сигнального провода.',
-        11: 'Ошибка калибровки тактирования DShot — сигнал выходит за допустимые границы. Проверьте частоту DShot и целостность провода.',
+        11: 'Ошибка внутренней калибровки.',
         12: 'Ошибка чтения EEPROM — не удалось прочитать настройки или информацию об устройстве. Требуется перепрошивка.'
     };
     return {
@@ -833,7 +833,7 @@ const isInEEpromVersion = (escEeepromVersion: number, minVersion?: number, maxVe
 const tabs = computed(() => {
     const ret = [
         { label: 'Base', slot: 'settings', icon: 'i-material-symbols-settings' },
-        { label: 'Звуки и сигналы', slot: 'tune', icon: 'i-material-symbols-music-note' }
+        { label: 'Tune', slot: 'tune', icon: 'i-material-symbols-music-note' }
     ];
     return ret;
 });
