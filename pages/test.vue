@@ -18,7 +18,7 @@
         variant="soft"
         icon="i-material-symbols-info"
         title="Как это работает"
-        description="Подключитесь к USB-порту полётника (passthrough не нужен). Если полётник уже подключен на странице конфигуратора — соединение подхватится автоматически. Полётник сам генерирует сигналы (DShot/PWM) на моторных выходах по командам MSP. Управление работает только когда полётник разармирован."
+        description="Страница подключается к полётнику автоматически при открытии (passthrough не нужен), при уходе со страницы соединение разрывается, моторы останавливаются. Полётник сам генерирует сигналы (DShot/PWM) на моторных выходах по командам MSP. Управление работает только когда полётник разармирован."
       />
       <UCard>
         <template #header>
@@ -305,23 +305,18 @@ const readMotorCount = async () => {
     }
 };
 
-const connect = async (adoptExisting = false) => {
-    if (connected.value || connecting.value) {
-        return;
-    }
-    if (!adoptExisting && serialStore.selectedDevice.id === '-1') {
+const connect = async () => {
+    if (connected.value || connecting.value || serialStore.selectedDevice.id === '-1') {
         return;
     }
     connecting.value = true;
     try {
-        if (!adoptExisting) {
-            const [vendorId = '', productId = ''] = serialStore.selectedDevice.id.split(':');
-            const ports = await navigator.serial.getPorts();
-            for (const port of ports) {
-                if (port.getInfo().usbVendorId === +vendorId && port.getInfo().usbProductId === +productId) {
-                    serialStore.deviceHandles.port = port;
-                    break;
-                }
+        const [vendorId = '', productId = ''] = serialStore.selectedDevice.id.split(':');
+        const ports = await navigator.serial.getPorts();
+        for (const port of ports) {
+            if (port.getInfo().usbVendorId === +vendorId && port.getInfo().usbProductId === +productId) {
+                serialStore.deviceHandles.port = port;
+                break;
             }
         }
         const port = serialStore.deviceHandles.port;
@@ -329,7 +324,7 @@ const connect = async (adoptExisting = false) => {
             logError('Serial port not found');
             return;
         }
-        if (!port.readable && !adoptExisting) {
+        if (!port.readable) {
             await serialStore.deviceHandles.serial.openPort(port, { baudRate: +baudrate.value } as any);
         }
         if (!port.readable || !port.writable) {
@@ -364,9 +359,7 @@ const connect = async (adoptExisting = false) => {
         failsafe.value = null;
         connected.value = true;
 
-        log(adoptExisting
-            ? `Использую уже открытое соединение с полётником${fcType.value ? ` (${fcType.value})` : ''}`
-            : `Подключено к полётнику${fcType.value ? ` (${fcType.value})` : ''}`);
+        log(`Подключено к полётнику${fcType.value ? ` (${fcType.value})` : ''}`);
     } catch (e: any) {
         logError(`Ошибка подключения: ${e.message}`);
         toast.add({
@@ -374,15 +367,7 @@ const connect = async (adoptExisting = false) => {
             color: 'red',
             description: e?.message ?? String(e)
         });
-        if (adoptExisting) {
-            // Keep the existing connection alive — just reset local test state
-            connected.value = false;
-            allowControl.value = false;
-            battery.value = null;
-            failsafe.value = null;
-        } else {
-            await disconnect(true);
-        }
+        await disconnect(true);
     } finally {
         connecting.value = false;
     }
@@ -468,35 +453,26 @@ useIntervalFn(async () => {
         }).catch(() => {});
 }, 500);
 
-// Stop motors but keep the port/connection alive for other pages (configurator)
-const releaseControl = async () => {
-    if (!connected.value) {
-        return;
-    }
-    allowControl.value = false;
-    connected.value = false;
-    battery.value = null;
-    failsafe.value = null;
-    motorOutputs.value = Array(8).fill(0);
-    resetOutputs();
-    await enqueue(() => Msp.getInstance().setMotor([...motorValues.value]))
-        .catch((e: any) => logError(`Ошибка остановки моторов: ${e.message}`));
-};
-
+// Leaving the page: stop the motor and force-disconnect, the configurator will
+// make its own fresh connection when needed
 onUnmounted(async () => {
-    await releaseControl();
+    if (connected.value) {
+        await disconnect();
+    }
 });
 
 onBeforeRouteLeave(async () => {
-    await releaseControl();
+    if (connected.value) {
+        await disconnect();
+    }
     return true;
 });
 
 onMounted(async () => {
     await refreshPorts();
-    // Reuse a connection that is already open (e.g. made on the configurator page)
-    if (serialStore.deviceHandles.port?.readable) {
-        await connect(true);
+    // Connect automatically when entering the page
+    if (serialStore.selectedDevice.id !== '-1' && !connected.value) {
+        await connect();
     }
 });
 </script>

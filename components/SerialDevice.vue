@@ -805,26 +805,7 @@ const writeConfig = async () => {
     }
 };
 
-const disconnectFromDevice = async () => {
-    if (serialStore.deviceHandles.port) {
-        if (serialStore.isFourWay) {
-            await FourWay.getInstance().send(FOUR_WAY_COMMANDS.cmd_InterfaceExit);
-        }
-
-        Serial.deinit();
-
-        if (serialStore.deviceHandles.stream) {
-            serialStore.deviceHandles.stream.reader?.releaseLock();
-            serialStore.deviceHandles.stream.writer?.releaseLock();
-            serialStore.deviceHandles.stream.port.close();
-        }
-
-        serialStore.$reset();
-        escStore.$reset();
-
-        log('Connection to device closed');
-    }
-};
+const disconnectFromDevice = useSerialDisconnect();
 
 const selectFile = (event: Event | FileList) => {
     if (event instanceof Event && event.target instanceof HTMLInputElement && event.target.files?.[0]) {
