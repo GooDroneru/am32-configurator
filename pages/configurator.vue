@@ -34,25 +34,6 @@
                 <UIcon class="text-green-500 w-[80px] h-[80px]" name="i-svg-spinners-blocks-wave" dynamic />
               </div>
               <div v-else-if="escStore.selectedEscInfo.length > 0" class="flex flex-col gap-4">
-                <UCheckbox v-model="syncAllEscTunes" label="Sync all ESCs?" />
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div
-                    v-for="n of escStore.selectedEscInfo.length"
-                    :key="n"
-                  >
-                    <div>ESC {{ n }}</div>
-                    <SettingField
-                      :esc-info="escStore.selectedEscInfo"
-                      field="STARTUP_MELODY"
-                      :individual="syncAllEscTunes ? undefined : n - 1"
-                      type="rtttl"
-                      placeholder="RTTTL String"
-                      help="Стартовая мелодия в формате RTTTL. Играется при подаче питания."
-                      :disabled="syncAllEscTunes ? n > 1 : false"
-                      @change="onSettingsChange"
-                    />
-                  </div>
-                </div>
                 <UCard class="max-w-[900px]">
                   <template #header>
                     <div class="flex items-center gap-2 text-xl">
@@ -757,8 +738,6 @@ import type { EepromLayoutKeys } from '~/src/eeprom';
 
 const serialStore = useSerialStore();
 const escStore = useEscStore();
-
-const syncAllEscTunes = ref(false);
 
 const firmwareVersion = computed(() => `${escStore.firstValidEscData?.data.settings.MAIN_REVISION ?? '0'}.${escStore.firstValidEscData?.data.settings.SUB_REVISION ?? '0'}`);
 const layoutVersion = computed(() => escStore.firstValidEscData?.data.settings.LAYOUT_REVISION as number ?? 0);
