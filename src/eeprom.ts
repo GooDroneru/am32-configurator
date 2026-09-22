@@ -214,13 +214,13 @@ export const EepromLayout = {
         offset: 0x2F,
         size: 1
     },
-    STARTUP_MELODY: {
-        offset: 0x30,
-        size: 64
-    },
     MAXIMUM_DUTY_CYCLE: {
-        offset: 0x70,
+        offset: 0x30,
         size: 1
+    },
+    STARTUP_MELODY: {
+        offset: 0x31,
+        size: 127
     },
     CAN_SETTINGS: {
         offset: 0xB0,
