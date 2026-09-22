@@ -64,11 +64,20 @@ class Mcu {
                 firmware_start: '0x1000',
                 eeprom_offset: '0xF000'
             },
-            '3506': {
+            3506: {
                 name: 'K1946VK035',
                 signature: '0x3506',
                 page_size: 1024,
                 flash_size: 65536,
+                flash_offset: '0x00000000',
+                firmware_start: '0x1000',
+                eeprom_offset: '0xF000'
+            },
+            '0506': {
+                name: 'K1921VG5T',
+                signature: '0x0506',
+                page_size: 1024,
+                flash_size: 524288,
                 flash_offset: '0x00000000',
                 firmware_start: '0x1000',
                 eeprom_offset: '0xF000'
@@ -94,9 +103,10 @@ class Mcu {
     }
 
     static getVariant (signature: number) {
-        const mcu = Mcu.variants[signature.toString(16).toUpperCase()];
+        const key = signature.toString(16).toUpperCase().padStart(4, '0');
+        const mcu = Mcu.variants[key];
         if (!mcu) {
-            throw new Error(`mcu signature ${signature.toString(16).toUpperCase()} unknown!`);
+            throw new Error(`mcu signature ${key} unknown!`);
         }
         return mcu;
     }

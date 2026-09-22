@@ -35,6 +35,11 @@ export enum FOUR_WAY_ACK {
     ACK_D_GENERAL_ERROR = 0x0F,
   };
 
+function hexDump (u: Uint8Array | ArrayBufferLike): string {
+    const view = u instanceof Uint8Array ? u : new Uint8Array(u);
+    return Array.from(view).map(b => b.toString(16).padStart(2, '0')).join(' ');
+}
+
 export class FourWay {
     static instance: FourWay;
 
@@ -56,8 +61,8 @@ export class FourWay {
 
     constructor (
       private readonly log: ((s: string) => void),
-      private readonly logError: ((s: string) => void),
-      private readonly logWarning: ((s: string) => void)
+      private readonly logWarning: ((s: string) => void),
+      private readonly logError: ((s: string) => void)
     ) {
     }
 
@@ -167,7 +172,11 @@ export class FourWay {
 
             mcu.getInfo().layoutSize = Mcu!.LAYOUT_SIZE;
 
-            const settingsArray = (await this.readAddress(eepromOffset, mcu.getInfo().layoutSize))!.params;
+            const settingsArray = await this.readChunked(eepromOffset, mcu.getInfo().layoutSize);
+            if (!settingsArray) {
+                throw new Error('EEPROM read failed (see [eeprom] log above)');
+            }
+            this.log(`[eeprom] header: eeprom_version=${settingsArray[1]} bootloader_version=${settingsArray[2]} fw_version=${settingsArray[3]}.${settingsArray[4]} layout_revision=${info.settings.LAYOUT_REVISION}`);
             mcu.getInfo().settings = bufferToSettings(settingsArray, info.settings.LAYOUT_REVISION as number);
             mcu.getInfo().settingsBuffer = settingsArray;
 
@@ -211,6 +220,27 @@ export class FourWay {
         );
     }
 
+    /**
+     * Read `bytes` from `address` in `chunkSize` chunks, logging every chunk.
+     * The FC/bootloader path drops large single reads, so the EEPROM (184 B) is
+     * read piecewise to (a) work around that and (b) show the raw content.
+     */
+    async readChunked (address: number, bytes: number, chunkSize = 32, retries = 10, timeout = 200): Promise<Uint8Array | null> {
+        const out = new Uint8Array(bytes);
+        for (let off = 0; off < bytes; off += chunkSize) {
+            const n = Math.min(chunkSize, bytes - off);
+            const r = await this.sendWithPromise(FOUR_WAY_COMMANDS.cmd_DeviceRead, [n === 256 ? 0 : n], address + off, retries, timeout);
+            if (!r) {
+                this.logError(`[eeprom] chunk read FAILED at 0x${(address + off).toString(16)} len=${n}`);
+                return null;
+            }
+            this.log(`[eeprom] 0x${(address + off).toString(16)} len=${n}: ${hexDump(r.params)}`);
+            out.set(r.params.subarray(0, n), off);
+        }
+        this.log(`[eeprom] full ${bytes}B: ${hexDump(out)}`);
+        return out;
+    }
+
     async read (): Promise<void> {
         try {
             const readerData: ReadableStreamReadResult<Uint8Array> = await Serial.read<Uint8Array>();
@@ -232,6 +262,8 @@ export class FourWay {
             throw new Error('message empty!');
         }
 
+        this.log(`[4way] TX ${message.byteLength}B: ${hexDump(new Uint8Array(message))}`);
+
         try {
             return await Serial.write(message, timeout);
         } catch (e: any) {
@@ -250,6 +282,7 @@ export class FourWay {
 
         const callback: (resolve: PromiseFn<any>, reject: PromiseFn<any>) => void = async (resolve, reject) => {
             while (currentTry++ < retries) {
+                this.log(`[4way] try ${currentTry}/${retries} ${enumToString(command, FOUR_WAY_COMMANDS)} addr=0x${address.toString(16)} params=[${params.map(p => '0x' + p.toString(16)).join(',')}]`);
                 const result = await this.send(command, params, address, timeout).catch((err) => {
                     console.log(err);
                     return null;
@@ -261,8 +294,10 @@ export class FourWay {
                 }
 
                 if (result) {
+                    this.log(`[4way] RX ${result.length}B: ${hexDump(result)}`);
                     try {
                         const response = this.parseMessage(result.buffer);
+                        this.log(`[4way] parsed cmd=0x${response.data.command.toString(16)} addr=0x${response.data.address.toString(16)} paramCount=${response.data.params.length} ack=0x${response.data.ack.toString(16)} (${enumToString(response.data.ack, FOUR_WAY_ACK)}) csum=0x${response.data.checksum.toString(16)}`);
                         if (response.data.ack === FOUR_WAY_ACK.ACK_OK) {
                             resolve(response.data);
                             break;
@@ -270,7 +305,10 @@ export class FourWay {
                         this.logError(`  error: ${enumToString(response.data.ack, FOUR_WAY_ACK)}`);
                     } catch (e) {
                         console.error(e);
+                        this.logError(`[4way] parse failed: ${(e as Error).message}`);
                     }
+                } else {
+                    this.logWarning(`[4way] no response / timeout after ${timeout}ms`);
                 }
                 await delay(250);
             }
@@ -288,11 +326,13 @@ export class FourWay {
 
         const view = new Uint8Array(buffer);
         if (view[0] !== fourWayIf) {
-            const error = `invalid message start: ${view[0]}`;
+            const error = `invalid message start: 0x${view[0]?.toString(16)} (expected 0x2e), len=${view.length}`;
+            this.logError(`[4way] ${error} raw: ${hexDump(view)}`);
             throw new Error(error);
         }
 
         if (view.length < 9) {
+            this.logError(`[4way] NotEnoughDataError: len=${view.length} raw: ${hexDump(view)}`);
             throw new Error('NotEnoughDataError');
         }
 
@@ -302,6 +342,7 @@ export class FourWay {
         }
 
         if (view.length < 8 + paramCount) {
+            this.logError(`[4way] NotEnoughDataError: len=${view.length} need=${8 + paramCount} (paramCount=${paramCount}) raw: ${hexDump(view)}`);
             throw new Error('NotEnoughDataError');
         }
 
@@ -319,8 +360,8 @@ export class FourWay {
         if (checksum !== message.checksum) {
             // this.increasePacketErrors(1);
 
-            const error = `checksum mismatch, received: ${message.checksum}, calculated: ${checksum}`;
-            this.logError(error);
+            const error = `checksum mismatch, received: 0x${message.checksum.toString(16)}, calculated: 0x${checksum.toString(16)}`;
+            this.logError(`[4way] ${error} raw: ${hexDump(view)}`);
             throw new Error(error);
         }
 
@@ -398,19 +439,16 @@ export class FourWay {
                 const info = Flash.getInfo(flash!);
                 const mcu = new Mcu(info.meta.signature);
 
-                let readbackSettings = null;
-
                 await this.write(mcu.getEepromOffset(), newSettingsArray);
-                readbackSettings = (await this.readAddress(mcu.getEepromOffset(), Mcu.LAYOUT_SIZE));
+
+                // Read back in chunks: the FC/bootloader path drops large single reads.
+                const readbackSettings = await this.readChunked(mcu.getEepromOffset(), Mcu.LAYOUT_SIZE);
 
                 if (readbackSettings) {
-                    /*
-                    if (!compare(newSettingsArray, readbackSettings.params)) {
-                        throw new Error('SettingsVerificationError(newSettingsArray, readbackSettings)');
-                    }
-                    */
-
+                    this.log(`[eeprom] readback ok (${readbackSettings.length}B): ${hexDump(readbackSettings)}`);
                     this.log('Successful wrote settings to ESC #' + (target + 1));
+                } else {
+                    this.logError('Settings read-back failed (see [eeprom] log above)');
                 }
             }
 

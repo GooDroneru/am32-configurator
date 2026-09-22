@@ -1,5 +1,10 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
+    // Site is deployed under https://goodroneru.ru/configurator/
+    app: {
+        baseURL: '/configurator/'
+    },
+
     devtools: {
         enabled: true,
 

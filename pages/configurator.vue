@@ -360,6 +360,19 @@
                       show-value
                       @change="onSettingsChange"
                     />
+                    <SettingField
+                      :esc-info="escStore.selectedEscInfo"
+                      field="MAXIMUM_DUTY_CYCLE"
+                      name="Maximum duty cycle"
+                      type="number"
+                      :min="1"
+                      :max="100"
+                      :step="1"
+                      unit="%"
+                      help="Максимальный газ (%): ограничивает максимальную скважность. Полный стик всё равно соответствует этому пределу (100% от разрешённого диапазона). 100 = без ограничения."
+                      show-value
+                      @change="onSettingsChange"
+                    />
                   </SettingFieldGroup>
                   <SettingFieldGroup
                     title="Limits"

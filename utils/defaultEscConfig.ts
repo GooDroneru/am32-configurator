@@ -17,6 +17,7 @@ export const DEFAULT_ESC_CONFIG: Record<string, number> = {
   PWM_FREQUENCY: 24, // 24kHz - 48kHz
   MAX_RAMP: 16, // 16.0% duty cycle per ms
   MINIMUM_DUTY_CYCLE: 2, // 2%
+  MAXIMUM_DUTY_CYCLE: 100, // 100% (no throttle limit)
   LOW_VOLTAGE_CUTOFF: 0, // Off
   TEMPERATURE_LIMIT: 0, // DISABLED
   CURRENT_LIMIT: 0, // DISABLED

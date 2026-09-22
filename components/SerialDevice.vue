@@ -366,7 +366,8 @@ import Mcu, { type EscData, type McuInfo } from '~/src/mcu';
 // Signature → hex filename mapping for GooDroneru/esc-firmware releases
 const ESC_FIRMWARE_HEX: Record<number, string> = {
     0x1f06: 'esc-firmware-wch.hex',
-    0x3506: 'esc-firmware-niiet.hex'
+    0x3506: 'esc-firmware-niiet.hex',
+    0x0506: 'esc-firmware-vg5t.hex'
 };
 
 const toast = useToast();
