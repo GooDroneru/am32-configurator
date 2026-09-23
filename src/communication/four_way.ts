@@ -410,7 +410,7 @@ export class FourWay {
     async writePages (begin: number, end: number, pageSize: number, data: Uint8Array, timeout: number) {
         const beginAddress = begin * pageSize;
         const endAddress = end * pageSize;
-        const step = 0x100;
+        const step = 0x80;
         const escStore = useEscStore();
 
         for (let address = beginAddress; address < endAddress && address < data.length; address += step) {
