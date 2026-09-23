@@ -484,9 +484,11 @@ export class FourWay {
                 escStore.bytesWritten = 0;
                 escStore.step = 'Writing';
 
-                const message = await this.readAddress(mcu.getEepromOffset(), Mcu.LAYOUT_SIZE);
-                if (message) {
-                    const originalSettings = message.params;
+                // Read the EEPROM in 32-byte chunks, exactly like writeSettings:
+                // a single 184-byte read is dropped by the FC/bootloader path,
+                // which aborts the whole flash before writePages() is reached.
+                const originalSettings = await this.readChunked(mcu.getEepromOffset(), Mcu.LAYOUT_SIZE);
+                if (originalSettings) {
 
                     // boot bit
                     originalSettings[0] = 0x00;
