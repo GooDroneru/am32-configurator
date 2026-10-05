@@ -1,22 +1,37 @@
 // Syncs esc-firmware .hex files from GitHub releases into public/firmware/
 // and regenerates firmware/index.json. Runs before build/generate.
 // Non-fatal: on any error the existing index.json is kept as-is.
+// Public repos use the anonymous GitHub API; for private repos (API returns
+// 401/403/404) falls back to the authenticated `gh` CLI (gh must be logged in).
 
 import { writeFile, mkdir, readFile, stat } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+
+const execFileAsync = promisify(execFile);
 
 const REPO = 'GooDroneru/esc-firmware';
 const INDEX_PATH = `${fileURLToPath(new URL('../', import.meta.url))}public/firmware/index.json`;
 const USER_AGENT = 'am32-configurator';
 
 try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/releases`, {
+    let releases;
+    let viaGh = false;
+
+    const apiRes = await fetch(`https://api.github.com/repos/${REPO}/releases`, {
         headers: { 'User-Agent': USER_AGENT }
     });
-    if (!res.ok) {
-        throw new Error(`GitHub API responded ${res.status}`);
+    if (apiRes.ok) {
+        releases = await apiRes.json();
+    } else {
+        console.warn(`[firmware] GitHub API responded ${apiRes.status}; falling back to 'gh' CLI`);
+        const { stdout } = await execFileAsync('gh', ['api', `repos/${REPO}/releases`], {
+            maxBuffer: 16 * 1024 * 1024
+        });
+        releases = JSON.parse(stdout.toString());
+        viaGh = true;
     }
-    const releases = await res.json();
 
     const entries = [];
     for (const release of releases) {
@@ -24,19 +39,29 @@ try {
             continue;
         }
 
+        const dir = `${fileURLToPath(new URL('../', import.meta.url))}public/firmware/${release.tag_name}/`;
+        await mkdir(dir, { recursive: true });
+
         const files = [];
         for (const asset of release.assets ?? []) {
             if (asset.name.toLowerCase().endsWith('.hex')) {
                 // hex assets are hosted locally so flashing works without CORS
-                const dir = `${fileURLToPath(new URL('../', import.meta.url))}public/firmware/${release.tag_name}/`;
-                await mkdir(dir, { recursive: true });
-                const assetRes = await fetch(asset.browser_download_url, {
-                    headers: { 'User-Agent': USER_AGENT }
-                });
-                if (!assetRes.ok) {
-                    throw new Error(`Failed to download ${asset.name}: ${assetRes.status}`);
+                if (viaGh) {
+                    // private repo: download the binary asset via gh (octet-stream)
+                    const { stdout } = await execFileAsync('gh', [
+                        'api', `repos/${REPO}/releases/assets/${asset.id}`,
+                        '-H', 'Accept: application/octet-stream'
+                    ], { maxBuffer: 256 * 1024 * 1024 });
+                    await writeFile(`${dir}${asset.name}`, stdout);
+                } else {
+                    const assetRes = await fetch(asset.browser_download_url, {
+                        headers: { 'User-Agent': USER_AGENT }
+                    });
+                    if (!assetRes.ok) {
+                        throw new Error(`Failed to download ${asset.name}: ${assetRes.status}`);
+                    }
+                    await writeFile(`${dir}${asset.name}`, Buffer.from(await assetRes.arrayBuffer()));
                 }
-                await writeFile(`${dir}${asset.name}`, Buffer.from(await assetRes.arrayBuffer()));
                 files.push({ name: asset.name, url: `firmware/${release.tag_name}/${asset.name}` });
             } else if (asset.name.toLowerCase().endsWith('.bin')) {
                 files.push({ name: asset.name, url: asset.browser_download_url });
