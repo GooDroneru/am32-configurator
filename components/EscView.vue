@@ -78,7 +78,7 @@
         <UIcon class="text-gray-700 w-[40px] h-[40px]" name="i-svg-spinners-blocks-wave" dynamic />
       </div>
       <div v-else-if="mcu" class="">
-        <div v-if="mcu?.settingsBuffer[0] === 0x01">
+        <div v-if="isEepromValidSetting">
           <div class="flex items-center gap-1">
             <UCheckbox v-model="isReversed" label="Reversed" />
             <UTooltip text="Реверс вращения мотора. Меняйте только при выключенном питании — мотор может дёрнуться." :popper="{ placement: 'right' }">
@@ -92,8 +92,8 @@
             </UTooltip>
           </div>
         </div>
-        <div v-if="mcu?.settingsBuffer[0] === 0x00" class="flex items-center justify-center gap-4">
-          <UIcon name="i-heroicons-exclamation-triangle-16-solid" class="w-10 h-10 text-red-700" /> 
+        <div v-else class="flex items-center justify-center gap-4">
+          <UIcon name="i-heroicons-exclamation-triangle-16-solid" class="w-10 h-10 text-red-700" />
           <div class="text-red-700 font-bold">
             <p>Flash was unsuccessfull.</p>
             <p>Reflash firmware to fix</p>
@@ -104,7 +104,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import type { EepromLayoutKeys } from '~/src/eeprom';
+import { type EepromLayoutKeys, isEepromValid } from '~/src/eeprom';
 import type { EscData } from '~/src/mcu';
 import Mcu from '~/src/mcu';
 
@@ -119,9 +119,11 @@ const emit = defineEmits<{(e: 'change', value: { index: number, field: EepromLay
 }>();
 
 const iconName = computed(() => `i-material-symbols-counter-${props.index + 1}-outline`);
-const isEscError = computed(() => props.esc?.isError || props.esc?.data?.settingsBuffer[0] === 0x00);
-
 const mcu = computed(() => props.esc?.data);
+// EEPROM integrity is determined by the layout/bootloader version, not by
+// byte 0 (NO_POLLING_START), which is a regular setting (0 is valid).
+const isEepromValidSetting = computed(() => isEepromValid(mcu.value?.settings));
+const isEscError = computed(() => props.esc?.isError || !isEepromValidSetting.value);
 
 const isReversed = computed({
     get: () => (getSettingValue<number>('MOTOR_DIRECTION') ?? 0) === 1,
@@ -156,9 +158,11 @@ const toggleSelected = () => {
 };
 
 const mcuDisplayType = computed(() => {
-  if (!mcu.value) return null;
-  // prefer hardware MCU name resolved from code, then EEPROM mcuType, then fallback to variant name
-  return (mcu.value.meta?.am32 as any)?.hwMcuName ?? mcu.value.meta?.am32?.mcuType ?? new Mcu(mcu.value.meta.signature).getName();
+    if (!mcu.value) {
+        return null;
+    }
+    // prefer hardware MCU name resolved from code, then EEPROM mcuType, then fallback to variant name
+    return (mcu.value.meta?.am32 as any)?.hwMcuName ?? mcu.value.meta?.am32?.mcuType ?? new Mcu(mcu.value.meta.signature).getName();
 });
 
 const bootloaderVersion = computed(() => {

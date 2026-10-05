@@ -234,3 +234,20 @@ export type EepromLayoutValues = typeof EepromLayout[EepromLayoutKeys];
 export type McuSettings = {
     [key in EepromLayoutKeys as string]: number | number[] | Uint8Array | string;
 };
+
+// Highest EEPROM layout revision understood by this build (firmware EEPROM_VERSION).
+export const EEPROM_VERSION_MAX = 4;
+
+// Integrity check mirrored from the firmware's loadEEpromSettings(): a valid
+// settings block has a non-blank layout/eeprom version in [1..EEPROM_VERSION_MAX]
+// and a bootloader-stamped bootloader version. Never use byte 0
+// (NO_POLLING_START) as a validity marker - it is a real setting and 0 is valid.
+export function isEepromValid (settings: Partial<Record<EepromLayoutKeys, unknown>> | null | undefined): boolean {
+    if (!settings) {
+        return false;
+    }
+    const version = Number(settings.LAYOUT_REVISION);
+    const bootloader = Number(settings.BOOT_LOADER_REVISION);
+    return Number.isFinite(version) && version >= 1 && version <= EEPROM_VERSION_MAX &&
+        Number.isFinite(bootloader) && bootloader !== 0 && bootloader !== 0xFF;
+}
