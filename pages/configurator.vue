@@ -906,6 +906,19 @@ const validateRpmLimits = (settings: { MAXIMUM_RPM?: number, MINIMUM_RPM?: numbe
     }
 };
 
+// Keep MINIMUM_DUTY_CYCLE <= MAXIMUM_DUTY_CYCLE. MINIMUM is stored in raw units
+// (percent = raw * 0.5, via display-factor 0.5); MAXIMUM is stored in percent.
+const validateDutyLimits = (settings: { MINIMUM_DUTY_CYCLE?: number, MAXIMUM_DUTY_CYCLE?: number }, field: EepromLayoutKeys, value: number) => {
+    const minPct = (settings.MINIMUM_DUTY_CYCLE ?? 0) * 0.5;
+    const maxPct = settings.MAXIMUM_DUTY_CYCLE ?? 100;
+    if (field === 'MINIMUM_DUTY_CYCLE' && value * 0.5 > maxPct) {
+        settings.MINIMUM_DUTY_CYCLE = Math.floor(maxPct / 0.5);
+    }
+    if (field === 'MAXIMUM_DUTY_CYCLE' && value < minPct) {
+        settings.MAXIMUM_DUTY_CYCLE = Math.ceil(minPct);
+    }
+};
+
 const onSettingsChange = ({ field, value, individual }: { field: EepromLayoutKeys, value: number | number[], individual?: number }) => {
     if (individual !== undefined) {
         const esc = escStore.selectedEscInfo[individual];
@@ -914,11 +927,13 @@ const onSettingsChange = ({ field, value, individual }: { field: EepromLayoutKey
         }
         esc.settings[field] = value;
         validateRpmLimits(esc.settings, field, Number(value));
+        validateDutyLimits(esc.settings, field, Number(value));
         esc.settingsDirty = true;
     } else {
         for (const esc of escStore.selectedEscInfo) {
             esc.settings[field] = value;
             validateRpmLimits(esc.settings, field, Number(value));
+            validateDutyLimits(esc.settings, field, Number(value));
             esc.settingsDirty = true;
         }
     }
