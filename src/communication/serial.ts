@@ -1,9 +1,5 @@
 import type { WebSerial } from 'webserial-wrapper';
 
-function hexDump (u: Uint8Array): string {
-    return Array.from(u).map(b => b.toString(16).padStart(2, '0')).join(' ');
-}
-
 class Serial {
     private readBuffer: Uint8Array | null = null;
     private readBufferTimeout: NodeJS.Timeout | null = null;
@@ -95,11 +91,6 @@ class Serial {
                     ret = mergeUint8Arrays(ret ?? new Uint8Array(), data);
                     console.log('Received chunk');
                     console.log(data);
-                    if (this.isMSP) {
-                        this.log(`[serial] MSP chunk ${data.length}B, total ${ret.length}B`);
-                    } else {
-                        this.log(`[serial] 4way chunk ${data.length}B: ${hexDump(data)} (total ${ret.length}B)`);
-                    }
                     // check packet is completely received
                     if (this.isMSP) {
                         console.log('Parsing MSP response of size ' + ret.length);
@@ -126,7 +117,6 @@ class Serial {
                                 console.log('Ending stream, all All good!');
                                 endStream();
                             } else {
-                                this.logWarning(`[serial] 4way incomplete: start=0x${ret[0].toString(16)} len=${ret.length} expect=${tmpLen + 8} (paramCount=${tmpLen}); waiting for more / timeout`);
                                 t = setTimeout(endStream, timeout); // to short to be reply
                             }
                         }
