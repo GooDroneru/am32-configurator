@@ -363,11 +363,14 @@ import db from '~/src/db';
 import Flash from '~/src/flash';
 import Mcu, { type EscData, type McuInfo } from '~/src/mcu';
 
-// Signature → hex filename mapping for GooDroneru/esc-firmware releases
-const ESC_FIRMWARE_HEX: Record<number, string> = {
-    0x1f06: 'esc-firmware-wch.hex',
-    0x3506: 'esc-firmware-niiet.hex',
-    0x0506: 'esc-firmware-vg5t.hex'
+// Signature → hex filename candidates for GooDroneru/esc-firmware releases.
+// The K1921VK035 asset was renamed niiet -> vk035; keep both so old releases
+// (which still ship esc-firmware-niiet.hex) and new ones (esc-firmware-vk035.hex)
+// both resolve.
+const ESC_FIRMWARE_HEX: Record<number, string[]> = {
+    0x1f06: ['esc-firmware-wch.hex'],
+    0x3506: ['esc-firmware-vk035.hex', 'esc-firmware-niiet.hex'],
+    0x0506: ['esc-firmware-vg5t.hex']
 };
 
 const toast = useToast();
@@ -484,11 +487,10 @@ watch([flashModalOpen, applyDefaultConfigModalOpen, saveConfigModalOpen, applyCo
 watchEffect(() => {
     if (assets.value && escStore.escData.length > 0) {
         const signature = escStore.firstValidEscData?.data.meta.signature;
-        const targetHex = signature !== undefined ? ESC_FIRMWARE_HEX[signature] : undefined;
+        const candidates = signature !== undefined ? ESC_FIRMWARE_HEX[signature] : undefined;
 
-        if (targetHex) {
-            const found = assets.value.find(a => a === targetHex);
-            selectedAsset.value = found ?? '';
+        if (candidates) {
+            selectedAsset.value = candidates.find(name => assets.value!.includes(name)) ?? '';
         } else {
             selectedAsset.value = '';
         }
