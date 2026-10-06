@@ -4,15 +4,14 @@ export const DEFAULT_ESC_CONFIG: Record<string, number> = {
     // Stamp the current layout revision so the EEPROM integrity check
     // (see isEepromValid) passes even on a previously blank/erased EEPROM.
     LAYOUT_REVISION: EEPROM_VERSION_MAX,
-    NO_POLLING_START: 0,
+    NO_POLLING_START: 1,
     STUCK_ROTOR_PROTECTION: 0,
     STALL_PROTECTION: 0,
-    USE_HALL_SENSORS: 0,
     INTERVAL_TELEMETRY: 0,
     VARIABLE_PWM_FREQUENCY: 0,
     COMPLEMENTARY_PWM: 1,
     AUTO_ADVANCE: 0,
-    TIMING_ADVANCE: 27, // 15° (raw = (15 - (-10)) / 0.9375 = 26.67 ≈ 27)
+    TIMING_ADVANCE: 26, // exactly 15° (display = (raw - 10) * 0.9375 = 16 * 0.9375)
     STARTUP_POWER: 100,
     MOTOR_KV: 55, // 2220 (raw = (2220 - 20) / 40 = 55)
     MOTOR_POLES: 14,
@@ -24,7 +23,7 @@ export const DEFAULT_ESC_CONFIG: Record<string, number> = {
     LOW_VOLTAGE_CUTOFF: 0, // Off
     TEMPERATURE_LIMIT: 0, // DISABLED
     CURRENT_LIMIT: 0, // DISABLED
-    LOW_VOLTAGE_THRESHOLD: 300,
+    LOW_VOLTAGE_THRESHOLD: 50, // 3.00 V/cell (raw = 0.01V/cell - 250)
     ABSOLUTE_VOLTAGE_CUTOFF: 0,
     CURRENT_P: 100,
     CURRENT_I: 0,
