@@ -1,5 +1,8 @@
 <template>
   <div>
+    <div v-if="isArduPilot" class="flex justify-center pt-4">
+      <ArduPilotGuide auto-open />
+    </div>
 
     <div>
       <div v-if="!serialStore.hasSerial">
@@ -751,6 +754,9 @@ import type { EepromLayoutKeys } from '~/src/eeprom';
 
 const serialStore = useSerialStore();
 const escStore = useEscStore();
+
+// Гайд ArduPilot показываем только когда подключён полётник на ArduPilot.
+const isArduPilot = computed(() => serialStore.mspData.type === 'ardu');
 
 const firmwareVersion = computed(() => `${escStore.firstValidEscData?.data.settings.MAIN_REVISION ?? '0'}.${escStore.firstValidEscData?.data.settings.SUB_REVISION ?? '0'}`);
 const layoutVersion = computed(() => escStore.firstValidEscData?.data.settings.LAYOUT_REVISION as number ?? 0);
