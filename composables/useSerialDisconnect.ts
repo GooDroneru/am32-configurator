@@ -11,6 +11,11 @@ export const useSerialDisconnect = () => {
             return;
         }
         if (serialStore.isFourWay) {
+            try {
+                FourWay.getInstance().stopKeepAlive();
+            } catch (e) {
+                console.error(e);
+            }
             await FourWay.getInstance().send(FOUR_WAY_COMMANDS.cmd_InterfaceExit);
         }
 

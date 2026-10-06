@@ -342,6 +342,7 @@ const connect = async () => {
         Serial.init(log, logError, logWarning, serialStore.deviceHandles.serial, port);
 
         if (serialStore.isFourWay) {
+            FourWay.getInstance().stopKeepAlive();
             await FourWay.getInstance().sendWithPromise(FOUR_WAY_COMMANDS.cmd_InterfaceExit).catch(() => {});
             serialStore.isFourWay = false;
             await delay(500);

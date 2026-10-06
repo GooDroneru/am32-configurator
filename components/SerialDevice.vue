@@ -614,13 +614,14 @@ const connectToDevice = async () => {
                 if (isDirectConnectDevice.value) {
                     connectToEsc();
                 } else {
-                    const result = await Msp.getInstance().sendWithPromise(MSP_COMMANDS.MSP_API_VERSION).catch(async (err) => {
+                    const result = await Msp.getInstance().sendWithPromise(MSP_COMMANDS.MSP_API_VERSION, undefined, 1000).catch(async (err) => {
                         logError(`${err.message}, trying to exit fourway and try again.`);
                         serialStore.isFourWay = true;
+                        FourWay.getInstance().stopKeepAlive();
                         await FourWay.getInstance().sendWithPromise(FOUR_WAY_COMMANDS.cmd_InterfaceExit);
                         await delay(1000);
                         serialStore.isFourWay = false;
-                        return Msp.getInstance().sendWithPromise(MSP_COMMANDS.MSP_API_VERSION).catch(() => {
+                        return Msp.getInstance().sendWithPromise(MSP_COMMANDS.MSP_API_VERSION, undefined, 1000).catch(() => {
                             logError('Not in four way mode? Cant automatically resolve issue! Restart and replug device and try again.');
                             return null;
                         });
@@ -633,29 +634,37 @@ const connectToDevice = async () => {
 
                     commandsQueue.processMspResponse(result!.commandName, result!.data);
 
-                    await Msp.getInstance().sendWithPromise(MSP_COMMANDS.MSP_FC_VARIANT).then((result) => {
+                    await Msp.getInstance().sendWithPromise(MSP_COMMANDS.MSP_FC_VARIANT, undefined, 1000).then((result) => {
                         if (result) {
                             commandsQueue.processMspResponse(result!.commandName, result!.data);
                         }
                     });
-                    await Msp.getInstance().sendWithPromise(MSP_COMMANDS.MSP_BATTERY_STATE).then((result) => {
+                    await Msp.getInstance().sendWithPromise(MSP_COMMANDS.MSP_BATTERY_STATE, undefined, 1000).then((result) => {
                         if (result) {
                             commandsQueue.processMspResponse(result!.commandName, result!.data);
                         }
                     });
-                    await Msp.getInstance().sendWithPromise(Msp.getInstance().getTypeMotorCommand(serialStore.mspData.type)).then((result) => {
+                    await Msp.getInstance().sendWithPromise(Msp.getInstance().getTypeMotorCommand(serialStore.mspData.type), undefined, 1000).then((result) => {
                         if (result) {
                             commandsQueue.processMspResponse(result!.commandName, result!.data);
                         }
                     });
 
-                    const passthroughResult = await Msp.getInstance().sendWithPromise(MSP_COMMANDS.MSP_SET_PASSTHROUGH);
+                    FourWay.getInstance().isArduPilot = serialStore.mspData.type === 'ardu';
+                    if (serialStore.mspData.type === 'ardu') {
+                        logWarning('ArduPilot detected: reliable ESC passthrough needs AP >= 4.6.3 (ideally 4.7.x), SERVO_BLH_AUTO=1, DShot on non-IOMCU AUX/FMU outputs, vehicle disarmed, USB (not telemetry radio), GCS disconnected.');
+                    }
+                    const passthroughResult = await Msp.getInstance().sendWithPromise(MSP_COMMANDS.MSP_SET_PASSTHROUGH, undefined, 3000);
 
-                    await delay(2000);
+                    const fourWayReady = await FourWay.getInstance().waitForFourWayReady();
+                    if (!fourWayReady) {
+                        logWarning('ESC 4-way interface did not answer GetName in time; continuing with a short wait.');
+                        await delay(2000);
+                    }
 
                     serialStore.isFourWay = true;
 
-                    escStore.expectedCount = passthroughResult?.data.getUint8(0) ?? 0;
+                    escStore.expectedCount = (passthroughResult && passthroughResult.data.byteLength >= 1) ? passthroughResult.data.getUint8(0) : 0;
                 }
 
                 serialStore.hasConnection = true;
@@ -693,13 +702,21 @@ const connectToEsc = async () => {
         escStore.isLoading = false;
     } else {
         if (!serialStore.isFourWay) {
-            const result = await Msp.getInstance().sendWithPromise(MSP_COMMANDS.MSP_SET_PASSTHROUGH);
+            FourWay.getInstance().isArduPilot = serialStore.mspData.type === 'ardu';
+            if (serialStore.mspData.type === 'ardu') {
+                logWarning('ArduPilot detected: reliable ESC passthrough needs AP >= 4.6.3 (ideally 4.7.x), SERVO_BLH_AUTO=1, DShot on non-IOMCU AUX/FMU outputs, vehicle disarmed, USB (not telemetry radio), GCS disconnected.');
+            }
+            const result = await Msp.getInstance().sendWithPromise(MSP_COMMANDS.MSP_SET_PASSTHROUGH, undefined, 3000);
 
-            await delay(2000);
+            const fourWayReady = await FourWay.getInstance().waitForFourWayReady();
+            if (!fourWayReady) {
+                logWarning('ESC 4-way interface did not answer GetName in time; continuing with a short wait.');
+                await delay(2000);
+            }
 
             serialStore.isFourWay = true;
 
-            escStore.expectedCount = result?.data.getUint8(0) ?? 0;
+            escStore.expectedCount = (result && result.data.byteLength >= 1) ? result.data.getUint8(0) : 0;
         }
 
         escData.value = [];
@@ -727,6 +744,10 @@ const connectToEsc = async () => {
         }
 
         escStore.isLoading = false;
+
+        if (escStore.count > 0) {
+            FourWay.getInstance().startKeepAlive();
+        }
     }
 
     const emptySettingsEscNumbers = escStore.escData
@@ -974,7 +995,27 @@ const startFlash = async (hexString: string) => {
         for (const n of savingOrApplyingSelectedEscs.value) {
             const i = n - 1;
             escStore.activeTarget = i;
-            await FourWay.getInstance().writeHex(i, hexString, 200);
+            try {
+                await FourWay.getInstance().writeHex(i, hexString, 200);
+            } catch (e: any) {
+                const logStore = useLogStore();
+                logStore.logError(`ESC ${i + 1}: flashing failed (${e?.message ?? String(e)}). Re-establishing 4-way passthrough...`);
+                FourWay.getInstance().stopKeepAlive();
+                try {
+                    await FourWay.getInstance().sendWithPromise(FOUR_WAY_COMMANDS.cmd_InterfaceExit);
+                } catch {
+                    // ignore - interface may already be gone
+                }
+                serialStore.isFourWay = false;
+                await delay(1500);
+                try {
+                    await connectToEsc();
+                    FourWay.getInstance().startKeepAlive();
+                } catch (reErr: any) {
+                    logStore.logError('Re-establishing passthrough also failed: ' + (reErr?.message ?? String(reErr)));
+                }
+                throw new Error(`ESC ${i + 1} flash failed - aborted to protect the ESC.`);
+            }
             await delay(200);
             if (currentTab.value === 2) {
                 escStore.step = 'Sending default config';

@@ -61,6 +61,23 @@ export class FourWay {
     ) {
     }
 
+    public interfaceName: string | null = null;
+    public isArduPilot = false;
+    private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+    private lastValidPacketAt = 0;
+    private busy = false;
+    private sendChain: Promise<void> = Promise.resolve();
+
+    /**
+     * Serialize all outgoing 4-way frames so a keep-alive can never interleave
+     * with a real exchange on the wire.
+     */
+    private withSendLock<T> (fn: () => Promise<T>): Promise<T> {
+        const run = this.sendChain.then(fn, fn);
+        this.sendChain = run.then(() => undefined, () => undefined);
+        return run;
+    }
+
     makePackage (cmd: FOUR_WAY_COMMANDS, params: number[], address: number) {
         if (params.length === 0) {
             params.push(0);
@@ -108,8 +125,8 @@ export class FourWay {
         return crc & 0xFFFF;
     }
 
-    initFlash (target: number, retries = 10) {
-        return this.sendWithPromise(FOUR_WAY_COMMANDS.cmd_DeviceInitFlash, [target], 0, retries);
+    initFlash (target: number, retries = 10, timeout = 2000) {
+        return this.sendWithPromise(FOUR_WAY_COMMANDS.cmd_DeviceInitFlash, [target], 0, retries, timeout);
     }
 
     reset (target: number) {
@@ -152,7 +169,7 @@ export class FourWay {
         const eepromOffset = mcu.getEepromOffset();
 
         try {
-            const fileNameRead = await this.readAddress(eepromOffset - 32, 32);
+            const fileNameRead = await this.readAddress(eepromOffset - 32, 32, 10, 1500);
             const fileName = new TextDecoder().decode(fileNameRead!.params.slice(0, fileNameRead?.params.indexOf(0x0)));
 
             if (/[A-Z0-9_]+/.test(fileName)) {
@@ -167,7 +184,7 @@ export class FourWay {
 
             mcu.getInfo().layoutSize = Mcu!.LAYOUT_SIZE;
 
-            const settingsArray = await this.readChunked(eepromOffset, mcu.getInfo().layoutSize);
+            const settingsArray = await this.readChunked(eepromOffset, mcu.getInfo().layoutSize, 32, 10, 1500);
             if (!settingsArray) {
                 throw new Error('EEPROM read failed');
             }
@@ -252,11 +269,18 @@ export class FourWay {
             throw new Error('message empty!');
         }
 
+        this.busy = true;
         try {
-            return await Serial.write(message, timeout);
-        } catch (e: any) {
-            this.logError(`MSP command failed: ${e.message}`);
-            return null;
+            return await this.withSendLock(async () => {
+                try {
+                    return await Serial.write(message, timeout);
+                } catch (e: any) {
+                    this.logError(`MSP command failed: ${e.message}`);
+                    return null;
+                }
+            });
+        } finally {
+            this.busy = false;
         }
     }
 
@@ -283,17 +307,27 @@ export class FourWay {
                 if (result) {
                     try {
                         const response = this.parseMessage(result.buffer);
-                        if (response.data.ack === FOUR_WAY_ACK.ACK_OK) {
+                        if (response.data.command !== command || response.data.address !== address) {
+                            this.logWarning(
+                                `[4way] discarding stale reply: got command 0x${response.data.command.toString(16)}/` +
+                                `address 0x${response.data.address.toString(16)}, expected command 0x${command.toString(16)}/` +
+                                `address 0x${address.toString(16)}`
+                            );
+                        } else if (response.data.ack === FOUR_WAY_ACK.ACK_OK) {
+                            this.lastValidPacketAt = Date.now();
                             resolve(response.data);
                             break;
+                        } else {
+                            this.logError(`  error: ${enumToString(response.data.ack, FOUR_WAY_ACK)}`);
                         }
-                        this.logError(`  error: ${enumToString(response.data.ack, FOUR_WAY_ACK)}`);
                     } catch (e) {
                         console.error(e);
                         this.logError(`[4way] parse failed: ${(e as Error).message}`);
                     }
                 }
-                await delay(250);
+                if (currentTry < retries) {
+                    await delay(250);
+                }
             }
 
             if (currentTry > retries) {
@@ -397,13 +431,21 @@ export class FourWay {
         const escStore = useEscStore();
 
         for (let address = beginAddress; address < endAddress && address < data.length; address += step) {
-            await this.write(
-                address,
-                data.subarray(address, Math.min(address + step, data.length)),
-                timeout
-            );
+            const chunkEnd = Math.min(address + step, data.length);
+            let chunk: Uint8Array = data.subarray(address, chunkEnd);
 
-            escStore.bytesWritten += step;
+            // Some bootloaders (e.g. STM32 G4) program flash in 8-byte doublewords
+            // and reject a write whose length is not a multiple of 8.
+            if (chunk.byteLength % 8 !== 0) {
+                const padded = new Uint8Array((chunk.byteLength + 7) & ~7);
+                padded.fill(0xFF);
+                padded.set(chunk);
+                chunk = padded;
+            }
+
+            await this.write(address, chunk, Math.max(timeout, 3000));
+
+            escStore.bytesWritten += chunkEnd - address;
         }
     }
 
@@ -422,10 +464,10 @@ export class FourWay {
                 const info = Flash.getInfo(flash!);
                 const mcu = new Mcu(info.meta.signature);
 
-                await this.write(mcu.getEepromOffset(), newSettingsArray);
+                await this.write(mcu.getEepromOffset(), newSettingsArray, 1500);
 
                 // Read back in chunks: the FC/bootloader path drops large single reads.
-                const readbackSettings = await this.readChunked(mcu.getEepromOffset(), Mcu.LAYOUT_SIZE);
+                const readbackSettings = await this.readChunked(mcu.getEepromOffset(), Mcu.LAYOUT_SIZE, 32, 10, 1500);
 
                 if (readbackSettings) {
                     this.log('Successful wrote settings to ESC #' + (target + 1));
@@ -469,7 +511,7 @@ export class FourWay {
                 // Read the EEPROM in 32-byte chunks, exactly like writeSettings:
                 // a single 184-byte read is dropped by the FC/bootloader path,
                 // which aborts the whole flash before writePages() is reached.
-                const originalSettings = await this.readChunked(mcu.getEepromOffset(), Mcu.LAYOUT_SIZE);
+                const originalSettings = await this.readChunked(mcu.getEepromOffset(), Mcu.LAYOUT_SIZE, 32, 10, 1500);
                 if (originalSettings) {
 
                     // boot bit
@@ -479,7 +521,7 @@ export class FourWay {
                     originalSettings.fill(0x00, 3, 5);
                     originalSettings.set(asciiToBuffer('FLASH FAIL  '), 5);
                     */
-                    await this.write(eepromOffset, originalSettings, timeout);
+                    await this.write(eepromOffset, originalSettings, Math.max(timeout, 1500));
 
                     await this.writePages(0x04, 0x40, pageSize, flash, timeout);
                     /* try {
@@ -502,7 +544,7 @@ export class FourWay {
 
                     // boot bit
                     originalSettings[0] = 0x01;
-                    await this.write(eepromOffset, originalSettings);
+                    await this.write(eepromOffset, originalSettings, Math.max(timeout, 1500));
                 }
             }
         }
@@ -541,5 +583,53 @@ export class FourWay {
 
     testAlive () {
         return this.sendWithPromise(FOUR_WAY_COMMANDS.cmd_InterfaceTestAlive);
+    }
+
+    /**
+     * Poll cmd_InterfaceGetName until the passthrough answers, instead of guessing
+     * with a blind sleep. AP_BLHeli tears the passthrough down when no valid
+     * 4-way packet arrives within MOTOR_ACTIVE_TIMEOUT (1000 ms).
+     */
+    async waitForFourWayReady (timeoutMs = 5000, intervalMs = 150): Promise<boolean> {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+            try {
+                const r = await this.sendWithPromise(FOUR_WAY_COMMANDS.cmd_InterfaceGetName, [], 0, 1, 500);
+                if (r) {
+                    // Some interfaces prepend a length/non-printable byte; keep only printable chars.
+                    this.interfaceName = new TextDecoder().decode(r.params).replace(/[^\x20-\x7E]/g, '');
+                    this.isArduPilot = /ARDU/i.test(this.interfaceName);
+                    return true;
+                }
+            } catch {
+                // interface not ready yet - keep polling
+            }
+            await delay(intervalMs);
+        }
+        return false;
+    }
+
+    startKeepAlive (intervalMs = 700, idleMs = 500) {
+        if (this.keepAliveTimer) {
+            return;
+        }
+        this.keepAliveTimer = setInterval(() => {
+            if (this.busy) {
+                return;
+            }
+            if (Date.now() - this.lastValidPacketAt < idleMs) {
+                return;
+            }
+            // cmd_InterfaceTestAlive keeps AP_BLHeli's MOTOR_ACTIVE_TIMEOUT (1000 ms) from
+            // tearing the passthrough down. Only meaningful once we are past a first InitFlash.
+            this.sendWithPromise(FOUR_WAY_COMMANDS.cmd_InterfaceTestAlive, [0], 0, 1, 600).catch(() => {});
+        }, intervalMs);
+    }
+
+    stopKeepAlive () {
+        if (this.keepAliveTimer) {
+            clearInterval(this.keepAliveTimer);
+            this.keepAliveTimer = null;
+        }
     }
 }

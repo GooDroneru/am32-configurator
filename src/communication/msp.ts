@@ -150,7 +150,7 @@ export class Msp {
         return bufferOut;
     }
 
-    async send (command: MSP_COMMANDS, data?: Uint8Array) {
+    async send (command: MSP_COMMANDS, data?: Uint8Array, timeoutMs = 250) {
         this.log(`Sending ${enumToString(command, MSP_COMMANDS)}...`);
         let bufferOut: ArrayBuffer;
 
@@ -162,15 +162,15 @@ export class Msp {
 
         try {
             console.log('send');
-            return await Serial.write(bufferOut);
+            return await Serial.write(bufferOut, timeoutMs);
         } catch (e: any) {
             this.logError(`MSP command failed: ${e.message}`);
             return null;
         }
     }
 
-    async sendWithPromise (command: MSP_COMMANDS, data?: Uint8Array) {
-        const result = await this.send(command, data);
+    async sendWithPromise (command: MSP_COMMANDS, data?: Uint8Array, timeoutMs = 250) {
+        const result = await this.send(command, data, timeoutMs);
         console.log('result', result);
         if (result) {
             return this.processResponse(result);
@@ -210,6 +210,7 @@ export class Msp {
     getTypeMotorCommand (type: MspData['type']) {
         switch (type) {
         case 'inav':
+        case 'emuf':
             return MSP_COMMANDS.MSP_MOTOR;
         default:
             return MSP_COMMANDS.MSP_MOTOR_CONFIG;
