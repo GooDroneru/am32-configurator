@@ -551,6 +551,39 @@ export class FourWay {
     }
 
     /**
+     * Erase the application by writing zeroes over the whole firmware region
+     * (from the firmware start up to, but not including, the EEPROM). The
+     * "application valid" boot bit is cleared so the MCU stays in the
+     * bootloader instead of trying to run zeroed flash. Settings are kept.
+     */
+    async eraseFirmware (target: number, timeout: number) {
+        const escStore = useEscStore();
+        const initFlash = await this.initFlash(target, 3);
+        const info = Flash.getInfo(initFlash!);
+        const mcu = new Mcu(info.meta.signature);
+
+        const eepromOffset = mcu.getEepromOffset();
+        const pageSize = mcu.getPageSize();
+        const firmwareStart = mcu.getFirmwareStart();
+
+        escStore.totalBytes = eepromOffset - firmwareStart;
+        escStore.bytesWritten = 0;
+        escStore.step = 'Erasing';
+
+        // Clear the boot bit first so a power cut mid-erase cannot boot the
+        // half-zeroed image.
+        const originalSettings = await this.readChunked(eepromOffset, Mcu.LAYOUT_SIZE, 32, 10, 1500);
+        if (!originalSettings) {
+            throw new Error('EEPROM read failed');
+        }
+        originalSettings[0] = 0x00;
+        await this.write(eepromOffset, originalSettings, Math.max(timeout, 1500));
+
+        const zeros = new Uint8Array(eepromOffset);
+        await this.writePages(firmwareStart / pageSize, eepromOffset / pageSize, pageSize, zeros, timeout);
+    }
+
+    /**
    * Verify multiple pages up to (but not including) end page
    *
    * @param {number} begin

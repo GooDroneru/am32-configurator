@@ -84,6 +84,13 @@
             color="green"
             @click="applyDefaultConfigModalOpen = true"
           />
+          <UButton
+            label="Erase firmware"
+            size="2xs"
+            icon="i-material-symbols-delete-forever-outline"
+            color="red"
+            @click="eraseFirmwareModalOpen = true"
+          />
         </div>
         <div class="min-w-[112px]">
           <UButton
@@ -370,6 +377,58 @@
           </template>
         </UCard>
       </UModal>
+      <UModal v-model="eraseFirmwareModalOpen">
+        <UCard :ui="{ ring: '', divide: 'divide-y divide-gray-100 dark:divide-gray-800' }">
+          <template #header>
+            <div class="flex items-center justify-center gap-2 text-xl">
+              <UIcon name="i-material-symbols-delete-forever-outline" class="h-8 w-8 text-red-500" />
+              <div class="text-2xl">
+                Erase firmware
+              </div>
+            </div>
+          </template>
+          <div class="flex flex-col gap-3">
+            <UAlert
+              color="red"
+              variant="soft"
+              title="Attention!"
+              description="The firmware area is overwritten with zeroes and the boot flag is cleared. The ESC will stay in the bootloader until you flash firmware again. Settings are kept."
+            />
+            <template v-if="!serialStore.isDirectConnect">
+              <div class="text-center">
+                Select ESC(s) to erase:
+              </div>
+              <div class="w-full text-center flex justify-center gap-2">
+                <div
+                  v-for="entry of validEscEntries"
+                  :key="entry.index"
+                  class="transition-all w-8 h-8 rounded-full text-center border border-gray-500 bg-gray-800 p-1 cursor-pointer"
+                  :class="{
+                    'ring-2 ring-red-500 bg-red-300/30': savingOrApplyingSelectedEscs.includes(entry.index + 1)
+                  }"
+                  @click="toggleSavingOrApplyingSelectedEsc(entry.index + 1);"
+                >
+                  {{ entry.index + 1 }}
+                </div>
+              </div>
+            </template>
+            <div v-else class="text-center">
+              The connected ESC will be erased.
+            </div>
+          </div>
+          <template #footer>
+            <div class="flex justify-end gap-2">
+              <UButton color="gray" variant="soft" label="Cancel" @click="eraseFirmwareModalOpen = false" />
+              <UButton
+                color="red"
+                label="Erase"
+                :disabled="!serialStore.isDirectConnect && savingOrApplyingSelectedEscs.length === 0"
+                @click="eraseFirmware"
+              />
+            </div>
+          </template>
+        </UCard>
+      </UModal>
     </div>
   </div>
 </template>
@@ -408,6 +467,7 @@ const flashModalOpen = ref(false);
 const applyDefaultConfigModalOpen = ref(false);
 const saveConfigModalOpen = ref(false);
 const applyConfigModalOpen = ref(false);
+const eraseFirmwareModalOpen = ref(false);
 const fileInput = ref<File | null>(null);
 const currentTab = ref(0);
 const applyConfigFile = ref();
@@ -508,7 +568,7 @@ const toggleSavingOrApplyingSelectedEsc = (n: number) => {
 };
 
 // Preselect the ESCs currently marked as selected whenever a modal opens
-watch([flashModalOpen, applyDefaultConfigModalOpen, saveConfigModalOpen, applyConfigModalOpen], (opened) => {
+watch([flashModalOpen, applyDefaultConfigModalOpen, saveConfigModalOpen, applyConfigModalOpen, eraseFirmwareModalOpen], (opened) => {
     if (opened.some(isOpen => isOpen)) {
         savingOrApplyingSelectedEscs.value = validEscEntries.value
             .filter(entry => entry.esc.data?.isSelected)
@@ -1094,6 +1154,68 @@ const startFlash = async (hexString: string) => {
         flashModalOpen.value = false;
 
         await connectToEsc();
+    }
+};
+
+const eraseFirmware = async () => {
+    const logStore = useLogStore();
+    eraseFirmwareModalOpen.value = false;
+    try {
+        if (serialStore.isDirectConnect) {
+            if (!escStore.firstValidEscData) {
+                logStore.logError('ESC not connected! Please connect to ESC first.');
+                toast.add({ title: 'Error', color: 'red', description: 'ESC not connected. Press the scan button first.' });
+                return;
+            }
+            const mcu = new Mcu(escStore.firstValidEscData.data.meta.signature);
+            escStore.activeTarget = 0;
+            escStore.bytesWritten = 0;
+            escStore.totalBytes = mcu.getEepromOffset() - mcu.getFirmwareStart();
+            escStore.step = 'Erasing';
+
+            await Direct.getInstance().eraseFirmware(mcu.getFirmwareStart(), mcu.getEepromOffset());
+
+            escStore.step = 'Resetting';
+            await Direct.getInstance().writeCommand(DIRECT_COMMANDS.cmd_Reset, 0);
+            await delay(2000);
+            escStore.step = '';
+            escStore.activeTarget = -1;
+            toast.add({ title: 'Erase complete', color: 'green', description: 'Firmware erased.' });
+            return;
+        }
+
+        if (savingOrApplyingSelectedEscs.value.length === 0) {
+            toast.add({ title: 'Error', color: 'red', description: 'Select at least one ESC first.' });
+            return;
+        }
+
+        for (const n of savingOrApplyingSelectedEscs.value) {
+            const i = n - 1;
+            escStore.activeTarget = i;
+            try {
+                await FourWay.getInstance().eraseFirmware(i, 200);
+            } catch (e: any) {
+                logStore.logError(`ESC ${i + 1}: erase failed (${e?.message ?? String(e)}).`);
+                escStore.activeTarget = -1;
+                escStore.step = '';
+                throw new Error(`ESC ${i + 1} erase failed.`);
+            }
+            escStore.step = 'Resetting';
+            await FourWay.getInstance().reset(i);
+            await delay(5000);
+        }
+
+        escStore.step = '';
+        escStore.bytesWritten = 0;
+        escStore.totalBytes = 0;
+        escStore.activeTarget = -1;
+        await connectToEsc();
+        toast.add({ title: 'Erase complete', color: 'green', description: 'Firmware erased.' });
+    } catch (e: any) {
+        logStore.logError('Erase error: ' + (e?.message ?? String(e)));
+        toast.add({ title: 'Erase Error', color: 'red', description: e?.message ?? String(e) });
+        escStore.activeTarget = -1;
+        escStore.step = '';
     }
 };
 
