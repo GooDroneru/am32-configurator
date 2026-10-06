@@ -1,6 +1,37 @@
 {
-  "generated": "2026-10-03T13:08:39.252Z",
+  "generated": "2026-10-06T00:00:00.000Z",
   "releases": [
+    {
+      "name": "2.3.1",
+      "prerelease": false,
+      "note": "ardu",
+      "files": [
+        {
+          "name": "esc-firmware-vg5t.bin",
+          "url": "firmware/2.3.1/esc-firmware-vg5t.bin"
+        },
+        {
+          "name": "esc-firmware-vg5t.hex",
+          "url": "firmware/2.3.1/esc-firmware-vg5t.hex"
+        },
+        {
+          "name": "esc-firmware-vk035.bin",
+          "url": "firmware/2.3.1/esc-firmware-vk035.bin"
+        },
+        {
+          "name": "esc-firmware-vk035.hex",
+          "url": "firmware/2.3.1/esc-firmware-vk035.hex"
+        },
+        {
+          "name": "esc-firmware-wch.bin",
+          "url": "firmware/2.3.1/esc-firmware-wch.bin"
+        },
+        {
+          "name": "esc-firmware-wch.hex",
+          "url": "firmware/2.3.1/esc-firmware-wch.hex"
+        }
+      ]
+    },
     {
       "name": "2.3.0",
       "prerelease": false,

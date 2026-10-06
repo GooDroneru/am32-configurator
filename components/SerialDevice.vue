@@ -131,9 +131,32 @@
                     :disabled="isFlashingActive"
                     :options="releasesOptions"
                     :loading="isFetchingReleases"
-                  />
+                  >
+                    <template #option="{ option }">
+                      <div class="flex w-full items-center justify-between gap-2">
+                        <span>{{ option }}</span>
+                        <UBadge
+                          v-if="releaseNotes[option]"
+                          size="xs"
+                          variant="subtle"
+                          color="primary"
+                        >
+                          {{ releaseNotes[option] }}
+                        </UBadge>
+                      </div>
+                    </template>
+                  </USelectMenu>
                   <div v-if="selectedAsset" class="text-sm text-gray-400">
                     Firmware: <span class="text-green-400">{{ selectedAsset }}</span>
+                    <UBadge
+                      v-if="releaseNotes[selectedRelease]"
+                      class="ml-2"
+                      size="xs"
+                      variant="subtle"
+                      color="primary"
+                    >
+                      {{ releaseNotes[selectedRelease] }}
+                    </UBadge>
                   </div>
                   <div v-else-if="!isFetchingReleases" class="text-sm text-red-400">
                     No firmware found for this device
@@ -448,6 +471,16 @@ const assets = computed(() => (releases.value?.[0]?.children.find(c => c.name ==
 
 const releasesOptions = computed(() => {
     return (releases.value?.[0]?.children.map(c => c.name) ?? []).sort((a, b) => b.localeCompare(a));
+});
+
+const releaseNotes = computed<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const release of firmwareIndexReleases.value) {
+        if (release.note) {
+            map[release.name] = release.note;
+        }
+    }
+    return map;
 });
 
 const flashTabs = computed(() => [
@@ -849,7 +882,15 @@ const startModalFlash = async () => {
             toast.add({ title: 'Error', color: 'red', description: 'Could not resolve firmware URL.' });
             return;
         }
-        const dbEntry = await db.downloads.where('url').equals(url).first();
+        const isValidHex = (text: unknown): text is string => typeof text === 'string' && /^\s*:/m.test(text);
+
+        let dbEntry = await db.downloads.where('url').equals(url).first();
+        if (dbEntry && !isValidHex(dbEntry.text)) {
+            // Cached entry is not a hex file (e.g. an HTML error/SPA page was cached earlier).
+            // Drop it so we re-download the real firmware instead of flashing garbage.
+            await db.downloads.where('url').equals(url).delete();
+            dbEntry = undefined;
+        }
 
         escStore.activeTarget = 0;
         escStore.step = 'Downloading';
@@ -880,10 +921,19 @@ const startModalFlash = async () => {
             return;
           }
         }
-        if (typeof data === 'string') {
-          await db.downloads.add({ url, text: data });
-          await startFlash(data);
+
+        if (!isValidHex(data)) {
+            // A static/SPA host answers a missing asset with index.html (HTTP 200). Never cache or
+            // flash that - report a clear error instead.
+            logStore.logError('Downloaded firmware is not a valid Intel HEX file (got HTML or empty content). The release asset is likely missing on the server.');
+            toast.add({ title: 'Error', color: 'red', description: 'Firmware file is missing or invalid on the server.' });
+            escStore.step = '';
+            escStore.activeTarget = -1;
+            return;
         }
+
+        await db.downloads.add({ url, text: data });
+        await startFlash(data);
     } else if (currentTab.value === 1) {
         if (fileInput.value) {
             await startFlash(await fileInput.value.text());

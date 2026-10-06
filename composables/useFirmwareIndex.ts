@@ -6,6 +6,7 @@ interface FirmwareIndexFile {
 interface FirmwareIndexRelease {
     name: string;
     prerelease: boolean;
+    note?: string;
     files: FirmwareIndexFile[];
 }
 
@@ -29,6 +30,7 @@ export const useFirmwareIndex = () => {
                 .map(release => ({
                     name: release.name,
                     prerelease: !!release.prerelease,
+                    note: release.note,
                     files: (release.files ?? [])
                         .filter(file => !!file?.name && !!file?.url)
                         .map(file => ({ name: file.name, url: resolveUrl(file.url) }))
