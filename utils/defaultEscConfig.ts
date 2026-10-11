@@ -5,6 +5,14 @@ export const DEFAULT_ESC_CONFIG: Record<string, number> = {
     // (see isEepromValid) passes even on a previously blank/erased EEPROM.
     LAYOUT_REVISION: EEPROM_VERSION_MAX,
     NO_POLLING_START: 1,
+    // Direction / mode / protocol are always written explicitly so a blank
+    // EEPROM's 0xFF never survives: a "truthy" 0xFF byte silently enables
+    // reverse + bidirectional and breaks the input decode on older firmware.
+    MOTOR_DIRECTION: 0, // Normal
+    BIDIRECTIONAL_MODE: 0, // Off (not 3D)
+    ESC_PROTOCOL: 0, // Auto
+    USE_HALL_SENSORS: 0,
+    DISABLE_STICK_CALIBRATION: 0,
     STUCK_ROTOR_PROTECTION: 0,
     STALL_PROTECTION: 0,
     INTERVAL_TELEMETRY: 0,
